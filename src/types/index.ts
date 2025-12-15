@@ -77,3 +77,8 @@ export const GAME_DURATION = 60; // seconds
 export const INITIAL_SPEED = 1;
 export const MAX_SPEED = 3;
 export const SPEED_INCREMENT = 0.05;
+
+// Color selection timer settings
+export const INITIAL_COLOR_TIMER = 4; // seconds to select each color
+export const MIN_COLOR_TIMER = 1.2; // minimum seconds (floor)
+export const COLOR_TIMER_DECREMENT = 0.08; // decrease per successful match

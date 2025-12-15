@@ -13,6 +13,9 @@ import {
   INITIAL_SPEED,
   MAX_SPEED,
   SPEED_INCREMENT,
+  INITIAL_COLOR_TIMER,
+  MIN_COLOR_TIMER,
+  COLOR_TIMER_DECREMENT,
 } from '../types';
 import {
   getPlayer,
@@ -49,6 +52,8 @@ interface GameContextType {
   currentColor: GameColor;
   speed: number;
   isPlaying: boolean;
+  colorTimer: number;
+  colorTimerMax: number;
 
   // Game actions
   startGame: () => void;
@@ -79,6 +84,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [currentColor, setCurrentColor] = useState<GameColor>('red');
   const [speed, setSpeed] = useState(INITIAL_SPEED);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [colorTimer, setColorTimer] = useState(INITIAL_COLOR_TIMER);
+  const [colorTimerMax, setColorTimerMax] = useState(INITIAL_COLOR_TIMER);
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>(getSettings);
@@ -86,9 +93,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Leaderboard
   const [topScores, setTopScores] = useState<Score[]>([]);
 
-  // Timer ref
+  // Timer refs
   const timerRef = useRef<number | null>(null);
   const lastTickRef = useRef<number>(0);
+  const colorTimerExpiredRef = useRef<boolean>(false);
 
   // Initialize from storage
   useEffect(() => {
@@ -132,6 +140,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
           return newTime;
         });
 
+        // Decrease color timer
+        setColorTimer((prev) => {
+          const newColorTime = prev - 0.1;
+          if (newColorTime <= 0 && !colorTimerExpiredRef.current) {
+            colorTimerExpiredRef.current = true;
+            return 0;
+          }
+          return Math.max(0, newColorTime);
+        });
+
         // Increase speed over time
         setSpeed((prev) => Math.min(prev + SPEED_INCREMENT / 10, MAX_SPEED));
       }, 100);
@@ -145,6 +163,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
       endGame();
     }
   }, [isPlaying, timeRemaining, settings.soundEnabled]);
+
+  // Handle color timer expiration
+  useEffect(() => {
+    if (isPlaying && colorTimer <= 0 && colorTimerExpiredRef.current) {
+      // Time ran out for this color - end game
+      setIsPlaying(false);
+      if (settings.soundEnabled) {
+        playWrongSound();
+        setTimeout(() => {
+          playGameOverSound();
+        }, 400);
+      }
+      // Save score and transition to game over
+      if (player && score > 0) {
+        saveScore({
+          playerName: player.name,
+          score,
+          date: Date.now(),
+        });
+        setTopScores(getTopScores(10));
+        setPlayerBestScore(getPlayerBestScore(player.name));
+      }
+      setScreen('gameOver');
+      colorTimerExpiredRef.current = false;
+    }
+  }, [isPlaying, colorTimer, settings.soundEnabled, player, score]);
 
   const getRandomColor = useCallback((): GameColor => {
     const availableColors = GAME_COLORS.filter((c) => c !== currentColor);
@@ -189,6 +233,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setTimeRemaining(GAME_DURATION);
     setSpeed(INITIAL_SPEED);
     setCurrentColor(GAME_COLORS[Math.floor(Math.random() * GAME_COLORS.length)]);
+    setColorTimer(INITIAL_COLOR_TIMER);
+    setColorTimerMax(INITIAL_COLOR_TIMER);
+    colorTimerExpiredRef.current = false;
     setIsPlaying(true);
     setScreen('playing');
     lastTickRef.current = GAME_DURATION;
@@ -204,6 +251,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // Correct match
         setScore((prev) => prev + Math.round(10 * speed));
         setCurrentColor(getRandomColor());
+
+        // Reset and decrement color timer for next color
+        const newTimerMax = Math.max(MIN_COLOR_TIMER, colorTimerMax - COLOR_TIMER_DECREMENT);
+        setColorTimerMax(newTimerMax);
+        setColorTimer(newTimerMax);
+
         if (settings.soundEnabled) {
           playCorrectSound();
         }
@@ -229,7 +282,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setScreen('gameOver');
       }
     },
-    [isPlaying, currentColor, getRandomColor, settings.soundEnabled, player, score, speed]
+    [isPlaying, currentColor, getRandomColor, settings.soundEnabled, player, score, speed, colorTimerMax]
   );
 
   const endGame = useCallback(() => {
@@ -294,6 +347,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         currentColor,
         speed,
         isPlaying,
+        colorTimer,
+        colorTimerMax,
         startGame,
         handleColorClick,
         endGame,
