@@ -11,6 +11,8 @@ export function GameScreen() {
     speed,
     handleColorClick,
     settings,
+    colorTimer,
+    colorTimerMax,
   } = useGame();
 
   // Shuffle colors for display (but keep consistent during game)
@@ -26,6 +28,8 @@ export function GameScreen() {
 
   const timePercent = (timeRemaining / GAME_DURATION) * 100;
   const isLowTime = timeRemaining <= 10;
+  const colorTimerPercent = (colorTimer / colorTimerMax) * 100;
+  const isColorTimerLow = colorTimer <= 1.5;
 
   return (
     <div className="game-container">
@@ -92,13 +96,29 @@ export function GameScreen() {
             Tap this color
           </p>
           <div
-            className="aspect-[3/1] rounded-2xl shadow-2xl flex items-center justify-center animate-flash"
+            className="aspect-[3/1] rounded-2xl shadow-2xl flex items-center justify-center animate-flash relative overflow-hidden"
             style={{ backgroundColor: COLOR_VALUES[currentColor] }}
           >
             <span className="text-white text-2xl font-bold drop-shadow-lg">
               {COLOR_NAMES[currentColor]}
             </span>
+            {/* Color Timer Bar */}
+            <div className="absolute bottom-0 left-0 right-0 h-2 bg-black/20">
+              <div
+                className={`h-full transition-all duration-100 ease-linear ${
+                  isColorTimerLow
+                    ? 'bg-red-400 animate-pulse'
+                    : 'bg-white/70'
+                }`}
+                style={{ width: `${colorTimerPercent}%` }}
+              />
+            </div>
           </div>
+          <p className={`text-center text-sm mt-2 font-medium tabular-nums ${
+            isColorTimerLow ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'
+          }`}>
+            {colorTimer.toFixed(1)}s
+          </p>
         </div>
       </div>
 

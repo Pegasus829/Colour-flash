@@ -49,6 +49,20 @@ export function InstructionsScreen() {
             </div>
 
             <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <span className="text-xl">⚡</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-800 dark:text-white">
+                  Color Timer
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Each color has a 4-second timer. Match before it runs out! The timer gets shorter with each match.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                 <span className="text-xl">🚀</span>
               </div>
@@ -57,7 +71,7 @@ export function InstructionsScreen() {
                   Speed Increases
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  As time passes, the game speeds up and points per match increase. Stay focused!
+                  As time passes, points per match increase. Stay focused!
                 </p>
               </div>
             </div>
