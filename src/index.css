@@ -1,0 +1,205 @@
+@import "tailwindcss";
+
+@theme {
+  --color-game-red: #EF4444;
+  --color-game-blue: #3B82F6;
+  --color-game-green: #22C55E;
+  --color-game-yellow: #EAB308;
+  --color-game-purple: #A855F7;
+  --color-game-orange: #F97316;
+  --color-game-pink: #EC4899;
+  --color-game-cyan: #06B6D4;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
+}
+
+.color-button {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 1rem;
+  transition: all 150ms ease-out;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  border: 4px solid rgb(255 255 255 / 0.2);
+}
+
+.color-button:active {
+  transform: scale(0.95);
+  filter: brightness(0.9);
+}
+
+.color-button:hover {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+.game-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(to bottom right, #f1f5f9, #e2e8f0);
+}
+
+.dark .game-container {
+  background: linear-gradient(to bottom right, #0f172a, #1e293b);
+}
+
+.card {
+  background-color: white;
+  border-radius: 1rem;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  padding: 1.5rem;
+  border: 1px solid #e2e8f0;
+}
+
+.dark .card {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+.btn-primary {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(to right, #3b82f6, #9333ea);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  transition: all 150ms;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(to right, #2563eb, #7c3aed);
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+}
+
+.btn-primary:active {
+  transform: scale(0.95);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  background-color: #e2e8f0;
+  color: #334155;
+  transition: all 150ms;
+  border: none;
+  cursor: pointer;
+}
+
+.dark .btn-secondary {
+  background-color: #334155;
+  color: #e2e8f0;
+}
+
+.btn-secondary:hover {
+  background-color: #cbd5e1;
+}
+
+.dark .btn-secondary:hover {
+  background-color: #475569;
+}
+
+.btn-secondary:active {
+  transform: scale(0.95);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 1.125rem;
+  background-color: #f1f5f9;
+  border: 2px solid #cbd5e1;
+  color: #1e293b;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.dark .input-field {
+  background-color: #334155;
+  border-color: #475569;
+  color: white;
+}
+
+.input-field::placeholder {
+  color: #94a3b8;
+}
+
+.dark .input-field::placeholder {
+  color: #64748b;
+}
+
+.input-field:focus {
+  border-color: #3b82f6;
+}
+
+@keyframes bounceIn {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes flash {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.3s ease-out;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.animate-flash {
+  animation: flash 0.3s ease-out;
+}
