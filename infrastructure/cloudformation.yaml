@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Color Match Rush - Centralized Leaderboard Infrastructure'
+
+Parameters:
+  TableName:
+    Type: String
+    Default: 'color-match-rush-scores'
+    Description: Name for the DynamoDB table
+
+Resources:
+  # DynamoDB Table for storing scores
+  ScoresTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      Tags:
+        - Key: Application
+          Value: ColorMatchRush
+
+  # Cognito Identity Pool for unauthenticated access
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: ColorMatchRushIdentityPool
+      AllowUnauthenticatedIdentities: true
+
+  # IAM Role for unauthenticated users
+  UnauthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              ForAnyValue:StringLike:
+                'cognito-identity.amazonaws.com:amr': unauthenticated
+      Policies:
+        - PolicyName: DynamoDBLeaderboardAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:Scan
+                Resource: !GetAtt ScoresTable.Arn
+
+  # Attach role to identity pool
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        unauthenticated: !GetAtt UnauthenticatedRole.Arn
+
+Outputs:
+  Region:
+    Description: AWS Region
+    Value: !Ref AWS::Region
+    Export:
+      Name: ColorMatchRush-Region
+
+  IdentityPoolId:
+    Description: Cognito Identity Pool ID
+    Value: !Ref IdentityPool
+    Export:
+      Name: ColorMatchRush-IdentityPoolId
+
+  DynamoDBTableName:
+    Description: DynamoDB Table Name
+    Value: !Ref ScoresTable
+    Export:
+      Name: ColorMatchRush-TableName
+
+  EnvFileContents:
+    Description: Copy this to your .env file
+    Value: !Sub |
+      VITE_AWS_REGION=${AWS::Region}
+      VITE_AWS_IDENTITY_POOL_ID=${IdentityPool}
+      VITE_AWS_DYNAMODB_TABLE=${ScoresTable}
