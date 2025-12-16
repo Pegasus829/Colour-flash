@@ -8,7 +8,7 @@ export function WelcomeScreen() {
   const [error, setError] = useState('');
   const [isChecking, setIsChecking] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -31,20 +31,26 @@ export function WelcomeScreen() {
 
     setIsChecking(true);
 
-    // Check if name is unique
-    if (!checkNameUnique(trimmedName)) {
-      setError('This name is already taken. Please choose another.');
+    try {
+      // Check if name is unique
+      const isUnique = await checkNameUnique(trimmedName);
+      if (!isUnique) {
+        setError('This name is already taken. Please choose another.');
+        setIsChecking(false);
+        return;
+      }
+
+      const success = await setPlayerName(trimmedName);
       setIsChecking(false);
-      return;
-    }
 
-    const success = setPlayerName(trimmedName);
-    setIsChecking(false);
-
-    if (success) {
-      setScreen('instructions');
-    } else {
-      setError('Could not save your name. Please try again.');
+      if (success) {
+        setScreen('instructions');
+      } else {
+        setError('Could not save your name. Please try again.');
+      }
+    } catch {
+      setError('An error occurred. Please try again.');
+      setIsChecking(false);
     }
   };
 

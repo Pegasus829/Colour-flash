@@ -23,10 +23,11 @@ import {
   clearPlayer,
   getSettings,
   saveSettings as persistSettings,
-  saveScore,
-  getTopScores,
-  isNameUnique,
-  getPlayerBestScore,
+  saveScoreAsync,
+  getTopScoresAsync,
+  isNameUniqueAsync,
+  getPlayerBestScoreAsync,
+  isFirebaseEnabled,
 } from '../utils/storage';
 import {
   playCorrectSound,
@@ -39,9 +40,9 @@ import {
 interface GameContextType {
   // Player
   player: Player | null;
-  setPlayerName: (name: string) => boolean;
+  setPlayerName: (name: string) => Promise<boolean>;
   logout: () => void;
-  checkNameUnique: (name: string) => boolean;
+  checkNameUnique: (name: string) => Promise<boolean>;
   playerBestScore: number;
 
   // Game state
@@ -67,7 +68,9 @@ interface GameContextType {
 
   // Leaderboard
   topScores: Score[];
-  refreshScores: () => void;
+  isLoadingScores: boolean;
+  isOnlineLeaderboard: boolean;
+  refreshScores: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -92,6 +95,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Leaderboard
   const [topScores, setTopScores] = useState<Score[]>([]);
+  const [isLoadingScores, setIsLoadingScores] = useState(true);
+  const isOnlineLeaderboard = isFirebaseEnabled();
 
   // Timer refs
   const timerRef = useRef<number | null>(null);
@@ -100,13 +105,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Initialize from storage
   useEffect(() => {
-    const savedPlayer = getPlayer();
-    if (savedPlayer) {
-      setPlayer(savedPlayer);
-      setPlayerBestScore(getPlayerBestScore(savedPlayer.name));
-      setScreen('home');
-    }
-    setTopScores(getTopScores(10));
+    const initializeData = async () => {
+      setIsLoadingScores(true);
+      const savedPlayer = getPlayer();
+      if (savedPlayer) {
+        setPlayer(savedPlayer);
+        const bestScore = await getPlayerBestScoreAsync(savedPlayer.name);
+        setPlayerBestScore(bestScore);
+        setScreen('home');
+      }
+      const scores = await getTopScoresAsync(10);
+      setTopScores(scores);
+      setIsLoadingScores(false);
+    };
+    initializeData();
   }, []);
 
   // Apply dark mode
@@ -176,15 +188,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }, 400);
       }
       // Save score and transition to game over
-      if (player && score > 0) {
-        saveScore({
-          playerName: player.name,
-          score,
-          date: Date.now(),
-        });
-        setTopScores(getTopScores(10));
-        setPlayerBestScore(getPlayerBestScore(player.name));
-      }
+      const saveAndUpdate = async () => {
+        if (player && score > 0) {
+          await saveScoreAsync({
+            playerName: player.name,
+            score,
+            date: Date.now(),
+          });
+          const scores = await getTopScoresAsync(10);
+          setTopScores(scores);
+          const bestScore = await getPlayerBestScoreAsync(player.name);
+          setPlayerBestScore(bestScore);
+        }
+      };
+      saveAndUpdate();
       setScreen('gameOver');
       colorTimerExpiredRef.current = false;
     }
@@ -195,14 +212,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return availableColors[Math.floor(Math.random() * availableColors.length)];
   }, [currentColor]);
 
-  const setPlayerName = useCallback((name: string): boolean => {
+  const setPlayerName = useCallback(async (name: string): Promise<boolean> => {
     const trimmedName = name.trim();
     if (!trimmedName) return false;
 
     // Check if name is unique (only for new players)
     const existingPlayer = getPlayer();
-    if (!existingPlayer && !isNameUnique(trimmedName)) {
-      return false;
+    if (!existingPlayer) {
+      const isUnique = await isNameUniqueAsync(trimmedName);
+      if (!isUnique) {
+        return false;
+      }
     }
 
     const newPlayer: Player = {
@@ -212,7 +232,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     savePlayer(newPlayer);
     setPlayer(newPlayer);
-    setPlayerBestScore(getPlayerBestScore(trimmedName));
+    const bestScore = await getPlayerBestScoreAsync(trimmedName);
+    setPlayerBestScore(bestScore);
     return true;
   }, []);
 
@@ -223,8 +244,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setScreen('welcome');
   }, []);
 
-  const checkNameUnique = useCallback((name: string): boolean => {
-    return isNameUnique(name.trim());
+  const checkNameUnique = useCallback(async (name: string): Promise<boolean> => {
+    return isNameUniqueAsync(name.trim());
   }, []);
 
   const startGame = useCallback(() => {
@@ -270,15 +291,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
           }, 400);
         }
         // Save score and transition to game over
-        if (player && score > 0) {
-          saveScore({
-            playerName: player.name,
-            score,
-            date: Date.now(),
-          });
-          setTopScores(getTopScores(10));
-          setPlayerBestScore(getPlayerBestScore(player.name));
-        }
+        const saveAndUpdate = async () => {
+          if (player && score > 0) {
+            await saveScoreAsync({
+              playerName: player.name,
+              score,
+              date: Date.now(),
+            });
+            const scores = await getTopScoresAsync(10);
+            setTopScores(scores);
+            const bestScore = await getPlayerBestScoreAsync(player.name);
+            setPlayerBestScore(bestScore);
+          }
+        };
+        saveAndUpdate();
         setScreen('gameOver');
       }
     },
@@ -296,15 +322,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     // Save score
-    if (player && score > 0) {
-      saveScore({
-        playerName: player.name,
-        score,
-        date: Date.now(),
-      });
-      setTopScores(getTopScores(10));
-      setPlayerBestScore(getPlayerBestScore(player.name));
-    }
+    const saveAndUpdate = async () => {
+      if (player && score > 0) {
+        await saveScoreAsync({
+          playerName: player.name,
+          score,
+          date: Date.now(),
+        });
+        const scores = await getTopScoresAsync(10);
+        setTopScores(scores);
+        const bestScore = await getPlayerBestScoreAsync(player.name);
+        setPlayerBestScore(bestScore);
+      }
+    };
+    saveAndUpdate();
 
     setScreen('gameOver');
   }, [player, score, settings.soundEnabled]);
@@ -325,11 +356,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const refreshScores = useCallback(() => {
-    setTopScores(getTopScores(10));
+  const refreshScores = useCallback(async () => {
+    setIsLoadingScores(true);
+    const scores = await getTopScoresAsync(10);
+    setTopScores(scores);
     if (player) {
-      setPlayerBestScore(getPlayerBestScore(player.name));
+      const bestScore = await getPlayerBestScoreAsync(player.name);
+      setPlayerBestScore(bestScore);
     }
+    setIsLoadingScores(false);
   }, [player]);
 
   return (
@@ -356,6 +391,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         toggleSound,
         toggleDarkMode,
         topScores,
+        isLoadingScores,
+        isOnlineLeaderboard,
         refreshScores,
       }}
     >

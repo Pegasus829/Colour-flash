@@ -1,8 +1,18 @@
 import type { Player, Score, GameSettings } from '../types';
+import {
+  isAwsEnabled,
+  saveScoreToDynamoDB,
+  getTopScoresFromDynamoDB,
+  isNameUniqueInDynamoDB,
+  getPlayerBestScoreFromDynamoDB,
+} from './aws';
 
 const PLAYER_KEY = 'colorMatchRush_player';
 const SCORES_KEY = 'colorMatchRush_scores';
 const SETTINGS_KEY = 'colorMatchRush_settings';
+
+// Re-export AWS check (aliased for compatibility with existing code)
+export { isAwsEnabled as isFirebaseEnabled };
 
 // Cookie utilities for session storage
 export function setCookie(name: string, value: string, days: number = 30): void {
@@ -15,7 +25,7 @@ export function getCookie(name: string): string | null {
   const nameEQ = `${name}=`;
   const cookies = document.cookie.split(';');
   for (const cookie of cookies) {
-    let c = cookie.trim();
+    const c = cookie.trim();
     if (c.indexOf(nameEQ) === 0) {
       return decodeURIComponent(c.substring(nameEQ.length));
     }
@@ -103,4 +113,63 @@ export function getSettings(): GameSettings {
 
 export function saveSettings(settings: GameSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+// ============================================
+// Async AWS-backed functions (for centralized leaderboard)
+// These functions use AWS DynamoDB when configured, with local fallback
+// ============================================
+
+/**
+ * Save a score - uses AWS if configured, otherwise local storage
+ */
+export async function saveScoreAsync(score: Score): Promise<void> {
+  // Always save locally first for offline support
+  saveScore(score);
+
+  // Also save to AWS DynamoDB if configured
+  if (isAwsEnabled()) {
+    await saveScoreToDynamoDB({
+      playerName: score.playerName,
+      score: score.score,
+    });
+  }
+}
+
+/**
+ * Get top scores - uses AWS if configured, otherwise local storage
+ */
+export async function getTopScoresAsync(limitCount: number = 10): Promise<Score[]> {
+  if (isAwsEnabled()) {
+    const awsScores = await getTopScoresFromDynamoDB(limitCount);
+    if (awsScores.length > 0) {
+      return awsScores;
+    }
+  }
+  // Fallback to local storage
+  return getTopScores(limitCount);
+}
+
+/**
+ * Check if name is unique - uses AWS if configured, otherwise local storage
+ */
+export async function isNameUniqueAsync(name: string): Promise<boolean> {
+  if (isAwsEnabled()) {
+    return isNameUniqueInDynamoDB(name);
+  }
+  // Fallback to local storage
+  return isNameUnique(name);
+}
+
+/**
+ * Get player's best score - uses AWS if configured, otherwise local storage
+ */
+export async function getPlayerBestScoreAsync(playerName: string): Promise<number> {
+  if (isAwsEnabled()) {
+    const awsScore = await getPlayerBestScoreFromDynamoDB(playerName);
+    const localScore = getPlayerBestScore(playerName);
+    // Return the higher of the two (in case of offline play)
+    return Math.max(awsScore, localScore);
+  }
+  return getPlayerBestScore(playerName);
 }
