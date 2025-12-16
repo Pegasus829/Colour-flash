@@ -1,8 +1,18 @@
 import type { Player, Score, GameSettings } from '../types';
+import {
+  isFirebaseEnabled,
+  saveScoreToFirestore,
+  getTopScoresFromFirestore,
+  isNameUniqueInFirestore,
+  getPlayerBestScoreFromFirestore,
+} from './firebase';
 
 const PLAYER_KEY = 'colorMatchRush_player';
 const SCORES_KEY = 'colorMatchRush_scores';
 const SETTINGS_KEY = 'colorMatchRush_settings';
+
+// Re-export Firebase check
+export { isFirebaseEnabled };
 
 // Cookie utilities for session storage
 export function setCookie(name: string, value: string, days: number = 30): void {
@@ -15,7 +25,7 @@ export function getCookie(name: string): string | null {
   const nameEQ = `${name}=`;
   const cookies = document.cookie.split(';');
   for (const cookie of cookies) {
-    let c = cookie.trim();
+    const c = cookie.trim();
     if (c.indexOf(nameEQ) === 0) {
       return decodeURIComponent(c.substring(nameEQ.length));
     }
@@ -103,4 +113,63 @@ export function getSettings(): GameSettings {
 
 export function saveSettings(settings: GameSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+// ============================================
+// Async Firebase-backed functions (for centralized leaderboard)
+// These functions use Firebase when configured, with local fallback
+// ============================================
+
+/**
+ * Save a score - uses Firebase if configured, otherwise local storage
+ */
+export async function saveScoreAsync(score: Score): Promise<void> {
+  // Always save locally first for offline support
+  saveScore(score);
+
+  // Also save to Firebase if configured
+  if (isFirebaseEnabled()) {
+    await saveScoreToFirestore({
+      playerName: score.playerName,
+      score: score.score,
+    });
+  }
+}
+
+/**
+ * Get top scores - uses Firebase if configured, otherwise local storage
+ */
+export async function getTopScoresAsync(limitCount: number = 10): Promise<Score[]> {
+  if (isFirebaseEnabled()) {
+    const firebaseScores = await getTopScoresFromFirestore(limitCount);
+    if (firebaseScores.length > 0) {
+      return firebaseScores;
+    }
+  }
+  // Fallback to local storage
+  return getTopScores(limitCount);
+}
+
+/**
+ * Check if name is unique - uses Firebase if configured, otherwise local storage
+ */
+export async function isNameUniqueAsync(name: string): Promise<boolean> {
+  if (isFirebaseEnabled()) {
+    return isNameUniqueInFirestore(name);
+  }
+  // Fallback to local storage
+  return isNameUnique(name);
+}
+
+/**
+ * Get player's best score - uses Firebase if configured, otherwise local storage
+ */
+export async function getPlayerBestScoreAsync(playerName: string): Promise<number> {
+  if (isFirebaseEnabled()) {
+    const firebaseScore = await getPlayerBestScoreFromFirestore(playerName);
+    const localScore = getPlayerBestScore(playerName);
+    // Return the higher of the two (in case of offline play)
+    return Math.max(firebaseScore, localScore);
+  }
+  return getPlayerBestScore(playerName);
 }

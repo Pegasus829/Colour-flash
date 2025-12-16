@@ -1,7 +1,7 @@
 import { useGame } from '../contexts/GameContext';
 
 export function Leaderboard() {
-  const { topScores, player } = useGame();
+  const { topScores, player, isLoadingScores, isOnlineLeaderboard } = useGame();
 
   const getMedalEmoji = (rank: number) => {
     switch (rank) {
@@ -25,9 +25,26 @@ export function Leaderboard() {
     <div className="card">
       <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
         <span>🏅</span> Leaderboard
+        {isOnlineLeaderboard && (
+          <span className="ml-auto text-xs font-normal px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+            🌐 Global
+          </span>
+        )}
+        {!isOnlineLeaderboard && (
+          <span className="ml-auto text-xs font-normal px-2 py-1 rounded-full bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+            📱 Local
+          </span>
+        )}
       </h2>
 
-      {topScores.length === 0 ? (
+      {isLoadingScores ? (
+        <div className="text-center py-8">
+          <div className="text-4xl mb-2 animate-pulse">⏳</div>
+          <p className="text-slate-500 dark:text-slate-400">
+            Loading scores...
+          </p>
+        </div>
+      ) : topScores.length === 0 ? (
         <div className="text-center py-8">
           <div className="text-4xl mb-2">🎯</div>
           <p className="text-slate-500 dark:text-slate-400">
