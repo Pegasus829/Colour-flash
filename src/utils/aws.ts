@@ -5,46 +5,79 @@ import {
   ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { fromCognitoIdentityPool } from '@aws-sdk/credential-providers';
+import { fetchAuthSession } from '@aws-amplify/auth';
 import type { Score } from '../types';
 
 // AWS Configuration - uses environment variables
 const region = import.meta.env.VITE_AWS_REGION || '';
 const identityPoolId = import.meta.env.VITE_AWS_IDENTITY_POOL_ID || '';
 const tableName = import.meta.env.VITE_AWS_DYNAMODB_TABLE || '';
+const userPoolId = import.meta.env.VITE_AWS_USER_POOL_ID || '';
 
 // Check if AWS is configured
 const isAwsConfigured = Boolean(region && identityPoolId && tableName);
-
-// Initialize DynamoDB client with Cognito Identity Pool credentials (unauthenticated)
-let docClient: DynamoDBDocumentClient | null = null;
-
-if (isAwsConfigured) {
-  const dynamoClient = new DynamoDBClient({
-    region,
-    credentials: fromCognitoIdentityPool({
-      clientConfig: { region },
-      identityPoolId,
-    }),
-  });
-
-  docClient = DynamoDBDocumentClient.from(dynamoClient, {
-    marshallOptions: {
-      removeUndefinedValues: true,
-    },
-  });
-}
 
 /**
  * Check if AWS is properly configured
  */
 export function isAwsEnabled(): boolean {
-  return isAwsConfigured && docClient !== null;
+  return isAwsConfigured;
+}
+
+/**
+ * Get DynamoDB client with appropriate credentials (authenticated or unauthenticated)
+ */
+async function getDynamoClient(): Promise<DynamoDBDocumentClient | null> {
+  if (!isAwsConfigured) {
+    return null;
+  }
+
+  try {
+    // Try to get authenticated session first
+    const session = await fetchAuthSession();
+
+    let credentials;
+
+    if (session.tokens?.idToken) {
+      // User is authenticated - use their token for Identity Pool
+      const loginKey = `cognito-idp.${region}.amazonaws.com/${userPoolId}`;
+      credentials = fromCognitoIdentityPool({
+        clientConfig: { region },
+        identityPoolId,
+        logins: {
+          [loginKey]: session.tokens.idToken.toString(),
+        },
+      });
+    } else {
+      // User is not authenticated - use unauthenticated credentials
+      credentials = fromCognitoIdentityPool({
+        clientConfig: { region },
+        identityPoolId,
+      });
+    }
+
+    const dynamoClient = new DynamoDBClient({
+      region,
+      credentials,
+    });
+
+    return DynamoDBDocumentClient.from(dynamoClient, {
+      marshallOptions: {
+        removeUndefinedValues: true,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting DynamoDB client:', error);
+    return null;
+  }
 }
 
 /**
  * Save a score to DynamoDB
  */
 export async function saveScoreToDynamoDB(score: Omit<Score, 'date'>): Promise<boolean> {
+  const docClient = await getDynamoClient();
+
   if (!docClient) {
     console.warn('AWS not configured - score not saved to cloud');
     return false;
@@ -78,6 +111,8 @@ export async function saveScoreToDynamoDB(score: Omit<Score, 'date'>): Promise<b
  * Get top scores from DynamoDB
  */
 export async function getTopScoresFromDynamoDB(limitCount: number = 10): Promise<Score[]> {
+  const docClient = await getDynamoClient();
+
   if (!docClient) {
     console.warn('AWS not configured - returning empty scores');
     return [];
@@ -120,6 +155,8 @@ export async function getTopScoresFromDynamoDB(limitCount: number = 10): Promise
  * Check if a player name already exists in the leaderboard
  */
 export async function isNameUniqueInDynamoDB(name: string): Promise<boolean> {
+  const docClient = await getDynamoClient();
+
   if (!docClient) {
     return true; // If AWS not configured, allow any name
   }
@@ -154,6 +191,8 @@ export async function isNameUniqueInDynamoDB(name: string): Promise<boolean> {
  * Get a player's best score from DynamoDB
  */
 export async function getPlayerBestScoreFromDynamoDB(playerName: string): Promise<number> {
+  const docClient = await getDynamoClient();
+
   if (!docClient) {
     return 0;
   }
