@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Color Match Rush - Centralized Leaderboard Infrastructure with OAuth'
+Description: 'Color Match Rush - Centralized Leaderboard with Cognito Email/Password Auth'
 
 Parameters:
   TableName:
@@ -7,51 +7,10 @@ Parameters:
     Default: 'color-match-rush-scores'
     Description: Name for the DynamoDB table
 
-  AppDomain:
-    Type: String
-    Default: 'colormatchrush'
-    Description: Unique prefix for Cognito hosted UI domain
-
   CallbackURL:
     Type: String
     Default: 'http://localhost:5173'
-    Description: OAuth callback URL (your app URL)
-
-  GoogleClientId:
-    Type: String
-    Default: ''
-    Description: Google OAuth Client ID (leave empty to skip Google setup)
-
-  GoogleClientSecret:
-    Type: String
-    Default: ''
-    NoEcho: true
-    Description: Google OAuth Client Secret
-
-  AppleTeamId:
-    Type: String
-    Default: ''
-    Description: Apple Team ID (leave empty to skip Apple setup)
-
-  AppleKeyId:
-    Type: String
-    Default: ''
-    Description: Apple Key ID
-
-  AppleServiceId:
-    Type: String
-    Default: ''
-    Description: Apple Service ID (Client ID)
-
-  ApplePrivateKey:
-    Type: String
-    Default: ''
-    NoEcho: true
-    Description: Apple Private Key (contents of .p8 file)
-
-Conditions:
-  HasGoogle: !Not [!Equals [!Ref GoogleClientId, '']]
-  HasApple: !Not [!Equals [!Ref AppleTeamId, '']]
+    Description: Your app URL (for OAuth callbacks)
 
 Resources:
   # DynamoDB Table for storing scores
@@ -74,7 +33,7 @@ Resources:
         - Key: Application
           Value: ColorMatchRush
 
-  # Cognito User Pool for authentication
+  # Cognito User Pool for email/password authentication
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -95,55 +54,12 @@ Resources:
           RequireNumbers: false
           RequireSymbols: false
           RequireUppercase: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
 
-  # User Pool Domain for hosted UI
-  UserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain: !Sub '${AppDomain}-${AWS::AccountId}'
-      UserPoolId: !Ref UserPool
-
-  # Google Identity Provider
-  GoogleIdentityProvider:
-    Type: AWS::Cognito::UserPoolIdentityProvider
-    Condition: HasGoogle
-    Properties:
-      UserPoolId: !Ref UserPool
-      ProviderName: Google
-      ProviderType: Google
-      ProviderDetails:
-        client_id: !Ref GoogleClientId
-        client_secret: !Ref GoogleClientSecret
-        authorize_scopes: 'profile email openid'
-      AttributeMapping:
-        email: email
-        name: name
-        username: sub
-
-  # Apple Identity Provider
-  AppleIdentityProvider:
-    Type: AWS::Cognito::UserPoolIdentityProvider
-    Condition: HasApple
-    Properties:
-      UserPoolId: !Ref UserPool
-      ProviderName: SignInWithApple
-      ProviderType: SignInWithApple
-      ProviderDetails:
-        client_id: !Ref AppleServiceId
-        team_id: !Ref AppleTeamId
-        key_id: !Ref AppleKeyId
-        private_key: !Ref ApplePrivateKey
-        authorize_scopes: 'email name'
-      AttributeMapping:
-        email: email
-        name: name
-        username: sub
-
-  # User Pool Client
+  # User Pool Client (no secret for web apps)
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
-    DependsOn:
-      - UserPoolDomain
     Properties:
       ClientName: ColorMatchRushWebClient
       UserPoolId: !Ref UserPool
@@ -153,21 +69,6 @@ Resources:
         - ALLOW_USER_SRP_AUTH
       SupportedIdentityProviders:
         - COGNITO
-        - !If [HasGoogle, Google, !Ref 'AWS::NoValue']
-        - !If [HasApple, SignInWithApple, !Ref 'AWS::NoValue']
-      CallbackURLs:
-        - !Ref CallbackURL
-        - !Sub '${CallbackURL}/'
-      LogoutURLs:
-        - !Ref CallbackURL
-        - !Sub '${CallbackURL}/'
-      AllowedOAuthFlows:
-        - code
-      AllowedOAuthScopes:
-        - email
-        - openid
-        - profile
-      AllowedOAuthFlowsUserPoolClient: true
       PreventUserExistenceErrors: ENABLED
       AccessTokenValidity: 1
       IdTokenValidity: 1
@@ -177,7 +78,7 @@ Resources:
         IdToken: hours
         RefreshToken: days
 
-  # Cognito Identity Pool
+  # Cognito Identity Pool (for DynamoDB access)
   IdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
@@ -216,7 +117,7 @@ Resources:
                   - dynamodb:GetItem
                 Resource: !GetAtt ScoresTable.Arn
 
-  # IAM Role for unauthenticated users
+  # IAM Role for unauthenticated users (read-only leaderboard)
   UnauthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
@@ -268,10 +169,6 @@ Outputs:
     Description: Cognito Identity Pool ID
     Value: !Ref IdentityPool
 
-  CognitoDomain:
-    Description: Cognito Hosted UI Domain
-    Value: !Sub '${AppDomain}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com'
-
   DynamoDBTableName:
     Description: DynamoDB Table Name
     Value: !Ref ScoresTable
@@ -284,5 +181,3 @@ Outputs:
       VITE_AWS_USER_POOL_CLIENT_ID=${UserPoolClient}
       VITE_AWS_IDENTITY_POOL_ID=${IdentityPool}
       VITE_AWS_DYNAMODB_TABLE=${ScoresTable}
-      VITE_COGNITO_DOMAIN=${AppDomain}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com
-      VITE_REDIRECT_URI=${CallbackURL}
