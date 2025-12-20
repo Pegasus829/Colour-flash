@@ -1,6 +1,5 @@
 import { Amplify } from 'aws-amplify';
 import {
-  signInWithRedirect,
   signOut,
   signIn,
   signUp,
@@ -17,15 +16,12 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  provider: 'google' | 'apple' | 'cognito';
 }
 
 // Check if auth is configured
 const userPoolId = import.meta.env.VITE_AWS_USER_POOL_ID || '';
 const userPoolClientId = import.meta.env.VITE_AWS_USER_POOL_CLIENT_ID || '';
 const identityPoolId = import.meta.env.VITE_AWS_IDENTITY_POOL_ID || '';
-const cognitoDomain = import.meta.env.VITE_COGNITO_DOMAIN || '';
-const redirectUri = import.meta.env.VITE_REDIRECT_URI || window.location.origin;
 const region = import.meta.env.VITE_AWS_REGION || '';
 
 const isAuthConfigured = Boolean(userPoolId && userPoolClientId && region);
@@ -38,45 +34,9 @@ if (isAuthConfigured) {
         userPoolId,
         userPoolClientId,
         identityPoolId,
-        loginWith: {
-          oauth: {
-            domain: cognitoDomain,
-            scopes: ['email', 'openid', 'profile'],
-            redirectSignIn: [redirectUri],
-            redirectSignOut: [redirectUri],
-            responseType: 'code',
-          },
-        },
       },
     },
   });
-}
-
-/**
- * Check if authentication is configured
- */
-export function isAuthEnabled(): boolean {
-  return isAuthConfigured;
-}
-
-/**
- * Sign in with Google
- */
-export async function signInWithGoogle(): Promise<void> {
-  if (!isAuthConfigured) {
-    throw new Error('Auth not configured');
-  }
-  await signInWithRedirect({ provider: 'Google' });
-}
-
-/**
- * Sign in with Apple
- */
-export async function signInWithApple(): Promise<void> {
-  if (!isAuthConfigured) {
-    throw new Error('Auth not configured');
-  }
-  await signInWithRedirect({ provider: 'Apple' });
 }
 
 /**
@@ -183,19 +143,10 @@ export async function getAuthenticatedUser(): Promise<AuthUser | null> {
     const user = await getCurrentUser();
     const attributes = await fetchUserAttributes();
 
-    // Determine provider from identity
-    let provider: AuthUser['provider'] = 'cognito';
-    if (user.username.startsWith('google_')) {
-      provider = 'google';
-    } else if (user.username.startsWith('signinwithapple_')) {
-      provider = 'apple';
-    }
-
     return {
       id: user.userId,
       email: attributes.email || '',
       name: attributes.name || attributes.email?.split('@')[0] || 'Player',
-      provider,
     };
   } catch {
     return null;

@@ -18,14 +18,12 @@ import {
   COLOR_TIMER_DECREMENT,
 } from '../types';
 import {
-  getPlayer,
   setPlayer as savePlayer,
   clearPlayer,
   getSettings,
   saveSettings as persistSettings,
   saveScoreAsync,
   getTopScoresAsync,
-  isNameUniqueAsync,
   getPlayerBestScoreAsync,
   isFirebaseEnabled,
 } from '../utils/storage';
@@ -37,10 +35,7 @@ import {
   resumeAudioContext,
 } from '../utils/sound';
 import {
-  isAuthEnabled,
   getAuthenticatedUser,
-  signInWithGoogle as authSignInWithGoogle,
-  signInWithApple as authSignInWithApple,
   signInWithEmail as authSignInWithEmail,
   signUpWithEmail as authSignUpWithEmail,
   confirmSignUpWithCode as authConfirmSignUp,
@@ -52,17 +47,12 @@ import {
 interface GameContextType {
   // Player
   player: Player | null;
-  setPlayerName: (name: string) => Promise<boolean>;
   logout: () => void;
-  checkNameUnique: (name: string) => Promise<boolean>;
   playerBestScore: number;
 
   // Auth
   authUser: AuthUser | null;
   isAuthLoading: boolean;
-  hasAuthSupport: boolean;
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<{ needsConfirmation: boolean }>;
   confirmSignUp: (email: string, code: string) => Promise<void>;
@@ -105,7 +95,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Auth state
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const hasAuthSupport = isAuthEnabled();
 
   // Game state
   const [screen, setScreen] = useState<GameScreen>('welcome');
@@ -136,65 +125,48 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setIsLoadingScores(true);
       setIsAuthLoading(true);
 
-      // Check for authenticated user first
-      if (hasAuthSupport) {
-        const authenticatedUser = await getAuthenticatedUser();
-        if (authenticatedUser) {
-          setAuthUser(authenticatedUser);
-          // Use auth user's name as player
-          const authPlayer: Player = {
-            name: authenticatedUser.name,
-            createdAt: Date.now(),
-          };
-          savePlayer(authPlayer);
-          setPlayer(authPlayer);
-          const bestScore = await getPlayerBestScoreAsync(authenticatedUser.name);
-          setPlayerBestScore(bestScore);
-          setScreen('home');
-          setIsAuthLoading(false);
-          const scores = await getTopScoresAsync(10);
-          setTopScores(scores);
-          setIsLoadingScores(false);
-          return;
-        }
-      }
-      setIsAuthLoading(false);
-
-      // Fall back to local player
-      const savedPlayer = getPlayer();
-      if (savedPlayer) {
-        setPlayer(savedPlayer);
-        const bestScore = await getPlayerBestScoreAsync(savedPlayer.name);
+      // Check for authenticated user
+      const authenticatedUser = await getAuthenticatedUser();
+      if (authenticatedUser) {
+        setAuthUser(authenticatedUser);
+        // Use auth user's name as player
+        const authPlayer: Player = {
+          name: authenticatedUser.name,
+          createdAt: Date.now(),
+        };
+        savePlayer(authPlayer);
+        setPlayer(authPlayer);
+        const bestScore = await getPlayerBestScoreAsync(authenticatedUser.name);
         setPlayerBestScore(bestScore);
         setScreen('home');
       }
+      setIsAuthLoading(false);
+
       const scores = await getTopScoresAsync(10);
       setTopScores(scores);
       setIsLoadingScores(false);
     };
     initializeData();
 
-    // Listen for auth state changes (OAuth redirects)
-    if (hasAuthSupport) {
-      const unsubscribe = onAuthStateChange(async (event, user) => {
-        if (event === 'signIn' && user) {
-          setAuthUser(user);
-          const authPlayer: Player = {
-            name: user.name,
-            createdAt: Date.now(),
-          };
-          savePlayer(authPlayer);
-          setPlayer(authPlayer);
-          const bestScore = await getPlayerBestScoreAsync(user.name);
-          setPlayerBestScore(bestScore);
-          setScreen('home');
-        } else if (event === 'signOut') {
-          setAuthUser(null);
-        }
-      });
-      return unsubscribe;
-    }
-  }, [hasAuthSupport]);
+    // Listen for auth state changes
+    const unsubscribe = onAuthStateChange(async (event, user) => {
+      if (event === 'signIn' && user) {
+        setAuthUser(user);
+        const authPlayer: Player = {
+          name: user.name,
+          createdAt: Date.now(),
+        };
+        savePlayer(authPlayer);
+        setPlayer(authPlayer);
+        const bestScore = await getPlayerBestScoreAsync(user.name);
+        setPlayerBestScore(bestScore);
+        setScreen('home');
+      } else if (event === 'signOut') {
+        setAuthUser(null);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   // Apply dark mode
   useEffect(() => {
@@ -287,31 +259,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return availableColors[Math.floor(Math.random() * availableColors.length)];
   }, [currentColor]);
 
-  const setPlayerName = useCallback(async (name: string): Promise<boolean> => {
-    const trimmedName = name.trim();
-    if (!trimmedName) return false;
-
-    // Check if name is unique (only for new players)
-    const existingPlayer = getPlayer();
-    if (!existingPlayer) {
-      const isUnique = await isNameUniqueAsync(trimmedName);
-      if (!isUnique) {
-        return false;
-      }
-    }
-
-    const newPlayer: Player = {
-      name: trimmedName,
-      createdAt: Date.now(),
-    };
-
-    savePlayer(newPlayer);
-    setPlayer(newPlayer);
-    const bestScore = await getPlayerBestScoreAsync(trimmedName);
-    setPlayerBestScore(bestScore);
-    return true;
-  }, []);
-
   const logout = useCallback(async () => {
     // Sign out from Cognito if authenticated
     if (authUser) {
@@ -323,14 +270,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setPlayerBestScore(0);
     setScreen('welcome');
   }, [authUser]);
-
-  const signInWithGoogle = useCallback(async () => {
-    await authSignInWithGoogle();
-  }, []);
-
-  const signInWithApple = useCallback(async () => {
-    await authSignInWithApple();
-  }, []);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     const user = await authSignInWithEmail(email, password);
@@ -352,10 +291,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const confirmSignUp = useCallback(async (email: string, code: string) => {
     await authConfirmSignUp(email, code);
-  }, []);
-
-  const checkNameUnique = useCallback(async (name: string): Promise<boolean> => {
-    return isNameUniqueAsync(name.trim());
   }, []);
 
   const startGame = useCallback(() => {
@@ -481,15 +416,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     <GameContext.Provider
       value={{
         player,
-        setPlayerName,
         logout,
-        checkNameUnique,
         playerBestScore,
         authUser,
         isAuthLoading,
-        hasAuthSupport,
-        signInWithGoogle,
-        signInWithApple,
         signInWithEmail,
         signUpWithEmail,
         confirmSignUp,
