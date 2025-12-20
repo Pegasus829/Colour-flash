@@ -18,14 +18,12 @@ import {
   COLOR_TIMER_DECREMENT,
 } from '../types';
 import {
-  getPlayer,
   setPlayer as savePlayer,
   clearPlayer,
   getSettings,
   saveSettings as persistSettings,
   saveScoreAsync,
   getTopScoresAsync,
-  isNameUniqueAsync,
   getPlayerBestScoreAsync,
   isFirebaseEnabled,
 } from '../utils/storage';
@@ -36,14 +34,28 @@ import {
   playTickSound,
   resumeAudioContext,
 } from '../utils/sound';
+import {
+  getAuthenticatedUser,
+  signInWithEmail as authSignInWithEmail,
+  signUpWithEmail as authSignUpWithEmail,
+  confirmSignUpWithCode as authConfirmSignUp,
+  signOutUser,
+  onAuthStateChange,
+  type AuthUser,
+} from '../utils/auth';
 
 interface GameContextType {
   // Player
   player: Player | null;
-  setPlayerName: (name: string) => Promise<boolean>;
   logout: () => void;
-  checkNameUnique: (name: string) => Promise<boolean>;
   playerBestScore: number;
+
+  // Auth
+  authUser: AuthUser | null;
+  isAuthLoading: boolean;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name: string) => Promise<{ needsConfirmation: boolean }>;
+  confirmSignUp: (email: string, code: string) => Promise<void>;
 
   // Game state
   screen: GameScreen;
@@ -80,6 +92,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [player, setPlayer] = useState<Player | null>(null);
   const [playerBestScore, setPlayerBestScore] = useState(0);
 
+  // Auth state
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
   // Game state
   const [screen, setScreen] = useState<GameScreen>('welcome');
   const [score, setScore] = useState(0);
@@ -103,22 +119,53 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const lastTickRef = useRef<number>(0);
   const colorTimerExpiredRef = useRef<boolean>(false);
 
-  // Initialize from storage
+  // Initialize from storage and check auth
   useEffect(() => {
     const initializeData = async () => {
       setIsLoadingScores(true);
-      const savedPlayer = getPlayer();
-      if (savedPlayer) {
-        setPlayer(savedPlayer);
-        const bestScore = await getPlayerBestScoreAsync(savedPlayer.name);
+      setIsAuthLoading(true);
+
+      // Check for authenticated user
+      const authenticatedUser = await getAuthenticatedUser();
+      if (authenticatedUser) {
+        setAuthUser(authenticatedUser);
+        // Use auth user's name as player
+        const authPlayer: Player = {
+          name: authenticatedUser.name,
+          createdAt: Date.now(),
+        };
+        savePlayer(authPlayer);
+        setPlayer(authPlayer);
+        const bestScore = await getPlayerBestScoreAsync(authenticatedUser.name);
         setPlayerBestScore(bestScore);
         setScreen('home');
       }
+      setIsAuthLoading(false);
+
       const scores = await getTopScoresAsync(10);
       setTopScores(scores);
       setIsLoadingScores(false);
     };
     initializeData();
+
+    // Listen for auth state changes
+    const unsubscribe = onAuthStateChange(async (event, user) => {
+      if (event === 'signIn' && user) {
+        setAuthUser(user);
+        const authPlayer: Player = {
+          name: user.name,
+          createdAt: Date.now(),
+        };
+        savePlayer(authPlayer);
+        setPlayer(authPlayer);
+        const bestScore = await getPlayerBestScoreAsync(user.name);
+        setPlayerBestScore(bestScore);
+        setScreen('home');
+      } else if (event === 'signOut') {
+        setAuthUser(null);
+      }
+    });
+    return unsubscribe;
   }, []);
 
   // Apply dark mode
@@ -212,40 +259,38 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return availableColors[Math.floor(Math.random() * availableColors.length)];
   }, [currentColor]);
 
-  const setPlayerName = useCallback(async (name: string): Promise<boolean> => {
-    const trimmedName = name.trim();
-    if (!trimmedName) return false;
-
-    // Check if name is unique (only for new players)
-    const existingPlayer = getPlayer();
-    if (!existingPlayer) {
-      const isUnique = await isNameUniqueAsync(trimmedName);
-      if (!isUnique) {
-        return false;
-      }
+  const logout = useCallback(async () => {
+    // Sign out from Cognito if authenticated
+    if (authUser) {
+      await signOutUser();
+      setAuthUser(null);
     }
-
-    const newPlayer: Player = {
-      name: trimmedName,
-      createdAt: Date.now(),
-    };
-
-    savePlayer(newPlayer);
-    setPlayer(newPlayer);
-    const bestScore = await getPlayerBestScoreAsync(trimmedName);
-    setPlayerBestScore(bestScore);
-    return true;
-  }, []);
-
-  const logout = useCallback(() => {
     clearPlayer();
     setPlayer(null);
     setPlayerBestScore(0);
     setScreen('welcome');
+  }, [authUser]);
+
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const user = await authSignInWithEmail(email, password);
+    setAuthUser(user);
+    const authPlayer: Player = {
+      name: user.name,
+      createdAt: Date.now(),
+    };
+    savePlayer(authPlayer);
+    setPlayer(authPlayer);
+    const bestScore = await getPlayerBestScoreAsync(user.name);
+    setPlayerBestScore(bestScore);
+    setScreen('home');
   }, []);
 
-  const checkNameUnique = useCallback(async (name: string): Promise<boolean> => {
-    return isNameUniqueAsync(name.trim());
+  const signUpWithEmail = useCallback(async (email: string, password: string, name: string) => {
+    return authSignUpWithEmail(email, password, name);
+  }, []);
+
+  const confirmSignUp = useCallback(async (email: string, code: string) => {
+    await authConfirmSignUp(email, code);
   }, []);
 
   const startGame = useCallback(() => {
@@ -371,10 +416,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     <GameContext.Provider
       value={{
         player,
-        setPlayerName,
         logout,
-        checkNameUnique,
         playerBestScore,
+        authUser,
+        isAuthLoading,
+        signInWithEmail,
+        signUpWithEmail,
+        confirmSignUp,
         screen,
         setScreen,
         score,
