@@ -41,6 +41,9 @@ import {
   getAuthenticatedUser,
   signInWithGoogle as authSignInWithGoogle,
   signInWithApple as authSignInWithApple,
+  signInWithEmail as authSignInWithEmail,
+  signUpWithEmail as authSignUpWithEmail,
+  confirmSignUpWithCode as authConfirmSignUp,
   signOutUser,
   onAuthStateChange,
   type AuthUser,
@@ -60,6 +63,9 @@ interface GameContextType {
   hasAuthSupport: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name: string) => Promise<{ needsConfirmation: boolean }>;
+  confirmSignUp: (email: string, code: string) => Promise<void>;
 
   // Game state
   screen: GameScreen;
@@ -326,6 +332,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
     await authSignInWithApple();
   }, []);
 
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const user = await authSignInWithEmail(email, password);
+    setAuthUser(user);
+    const authPlayer: Player = {
+      name: user.name,
+      createdAt: Date.now(),
+    };
+    savePlayer(authPlayer);
+    setPlayer(authPlayer);
+    const bestScore = await getPlayerBestScoreAsync(user.name);
+    setPlayerBestScore(bestScore);
+    setScreen('home');
+  }, []);
+
+  const signUpWithEmail = useCallback(async (email: string, password: string, name: string) => {
+    return authSignUpWithEmail(email, password, name);
+  }, []);
+
+  const confirmSignUp = useCallback(async (email: string, code: string) => {
+    await authConfirmSignUp(email, code);
+  }, []);
+
   const checkNameUnique = useCallback(async (name: string): Promise<boolean> => {
     return isNameUniqueAsync(name.trim());
   }, []);
@@ -462,6 +490,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         hasAuthSupport,
         signInWithGoogle,
         signInWithApple,
+        signInWithEmail,
+        signUpWithEmail,
+        confirmSignUp,
         screen,
         setScreen,
         score,

@@ -2,9 +2,13 @@ import { Amplify } from 'aws-amplify';
 import {
   signInWithRedirect,
   signOut,
+  signIn,
+  signUp,
+  confirmSignUp,
   getCurrentUser,
   fetchAuthSession,
   fetchUserAttributes,
+  updateUserAttributes,
 } from '@aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
 import type { HubCallback } from '@aws-amplify/core';
@@ -73,6 +77,92 @@ export async function signInWithApple(): Promise<void> {
     throw new Error('Auth not configured');
   }
   await signInWithRedirect({ provider: 'Apple' });
+}
+
+/**
+ * Sign up with email and password
+ */
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  name: string
+): Promise<{ needsConfirmation: boolean }> {
+  if (!isAuthConfigured) {
+    throw new Error('Auth not configured');
+  }
+
+  const { isSignUpComplete, nextStep } = await signUp({
+    username: email,
+    password,
+    options: {
+      userAttributes: {
+        email,
+        name,
+      },
+    },
+  });
+
+  return {
+    needsConfirmation: !isSignUpComplete && nextStep.signUpStep === 'CONFIRM_SIGN_UP',
+  };
+}
+
+/**
+ * Confirm sign up with verification code
+ */
+export async function confirmSignUpWithCode(
+  email: string,
+  code: string
+): Promise<void> {
+  if (!isAuthConfigured) {
+    throw new Error('Auth not configured');
+  }
+
+  await confirmSignUp({
+    username: email,
+    confirmationCode: code,
+  });
+}
+
+/**
+ * Sign in with email and password
+ */
+export async function signInWithEmail(
+  email: string,
+  password: string
+): Promise<AuthUser> {
+  if (!isAuthConfigured) {
+    throw new Error('Auth not configured');
+  }
+
+  const { isSignedIn } = await signIn({
+    username: email,
+    password,
+  });
+
+  if (!isSignedIn) {
+    throw new Error('Sign in failed');
+  }
+
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    throw new Error('Failed to get user after sign in');
+  }
+
+  return user;
+}
+
+/**
+ * Update user's display name
+ */
+export async function updateDisplayName(name: string): Promise<void> {
+  if (!isAuthConfigured) return;
+
+  await updateUserAttributes({
+    userAttributes: {
+      name,
+    },
+  });
 }
 
 /**
