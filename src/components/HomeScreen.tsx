@@ -2,7 +2,7 @@ import { useGame } from '../contexts/GameContext';
 import { Leaderboard } from './Leaderboard';
 
 export function HomeScreen() {
-  const { player, playerBestScore, startGame, setScreen } = useGame();
+  const { playerBestScore, playerBestLevel, startGame, setScreen } = useGame();
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -52,6 +52,11 @@ export function HomeScreen() {
                 <p className="text-5xl font-black text-white mt-1">
                   {playerBestScore > 0 ? playerBestScore.toLocaleString() : '—'}
                 </p>
+                {playerBestLevel > 0 && (
+                  <p className="text-yellow-200/80 text-sm mt-2">
+                    Level {playerBestLevel}
+                  </p>
+                )}
               </div>
               <div className="text-6xl drop-shadow-lg">🏆</div>
             </div>

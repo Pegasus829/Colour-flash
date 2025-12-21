@@ -4,6 +4,7 @@ import {
   InstructionsScreen,
   HomeScreen,
   GameScreen,
+  LevelUpScreen,
   GameOverScreen,
   ProfileScreen,
 } from './components';
@@ -20,6 +21,8 @@ function GameRouter() {
       return <HomeScreen />;
     case 'playing':
       return <GameScreen />;
+    case 'levelUp':
+      return <LevelUpScreen />;
     case 'gameOver':
       return <GameOverScreen />;
     case 'profile':

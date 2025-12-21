@@ -2,6 +2,7 @@ export { WelcomeScreen } from './WelcomeScreen';
 export { InstructionsScreen } from './InstructionsScreen';
 export { HomeScreen } from './HomeScreen';
 export { GameScreen } from './GameScreen';
+export { LevelUpScreen } from './LevelUpScreen';
 export { GameOverScreen } from './GameOverScreen';
 export { ProfileScreen } from './ProfileScreen';
 export { Leaderboard } from './Leaderboard';

@@ -97,7 +97,7 @@ export function Leaderboard() {
                   </p>
                 </div>
 
-                {/* Score */}
+                {/* Score & Level */}
                 <div className="flex-shrink-0 text-right">
                   <p
                     className={`font-black text-lg ${
@@ -107,6 +107,9 @@ export function Leaderboard() {
                     }`}
                   >
                     {score.score.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-white/40">
+                    Level {score.level}
                   </p>
                 </div>
               </div>

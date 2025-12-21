@@ -95,6 +95,21 @@ export function getPlayerBestScore(playerName: string): number {
   return Math.max(...playerScores.map(s => s.score));
 }
 
+export function getPlayerBestRecord(playerName: string): { score: number; level: number } {
+  const scores = getScores();
+  const playerScores = scores.filter(
+    s => s.playerName.toLowerCase() === playerName.toLowerCase()
+  );
+  if (playerScores.length === 0) return { score: 0, level: 0 };
+
+  // Find the score record with the highest score
+  const bestScore = playerScores.reduce((best, current) =>
+    current.score > best.score ? current : best
+  );
+
+  return { score: bestScore.score, level: bestScore.level };
+}
+
 // Settings management
 export function getSettings(): GameSettings {
   try {
@@ -132,6 +147,7 @@ export async function saveScoreAsync(score: Score): Promise<void> {
     await saveScoreToDynamoDB({
       playerName: score.playerName,
       score: score.score,
+      level: score.level,
     });
   }
 }
@@ -172,4 +188,10 @@ export async function getPlayerBestScoreAsync(playerName: string): Promise<numbe
     return Math.max(awsScore, localScore);
   }
   return getPlayerBestScore(playerName);
+}
+
+export async function getPlayerBestRecordAsync(playerName: string): Promise<{ score: number; level: number }> {
+  // For now, just use local storage
+  // TODO: Expand to fetch from DynamoDB when available
+  return getPlayerBestRecord(playerName);
 }

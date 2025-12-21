@@ -13,9 +13,12 @@ import {
   INITIAL_SPEED,
   MAX_SPEED,
   SPEED_INCREMENT,
-  INITIAL_COLOR_TIMER,
   MIN_COLOR_TIMER,
   COLOR_TIMER_DECREMENT,
+  MATCHES_PER_LEVEL,
+  INITIAL_LEVEL,
+  COLORS_PER_LEVEL,
+  getTimerForLevel,
 } from '../types';
 import {
   setPlayer as savePlayer,
@@ -24,7 +27,7 @@ import {
   saveSettings as persistSettings,
   saveScoreAsync,
   getTopScoresAsync,
-  getPlayerBestScoreAsync,
+  getPlayerBestRecordAsync,
   isFirebaseEnabled,
 } from '../utils/storage';
 import {
@@ -51,6 +54,7 @@ interface GameContextType {
   player: Player | null;
   logout: () => void;
   playerBestScore: number;
+  playerBestLevel: number;
   updatePlayerName: (name: string) => Promise<void>;
 
   // Auth
@@ -71,11 +75,14 @@ interface GameContextType {
   isPlaying: boolean;
   colorTimer: number;
   colorTimerMax: number;
+  level: number;
+  matchesInCurrentLevel: number;
 
   // Game actions
   startGame: () => void;
   handleColorClick: (color: GameColor) => void;
   endGame: () => void;
+  continuePlaying: () => void;
 
   // Settings
   settings: GameSettings;
@@ -95,6 +102,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Player state
   const [player, setPlayer] = useState<Player | null>(null);
   const [playerBestScore, setPlayerBestScore] = useState(0);
+  const [playerBestLevel, setPlayerBestLevel] = useState(0);
 
   // Auth state
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -107,8 +115,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [currentColor, setCurrentColor] = useState<GameColor>('red');
   const [speed, setSpeed] = useState(INITIAL_SPEED);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [colorTimer, setColorTimer] = useState(INITIAL_COLOR_TIMER);
-  const [colorTimerMax, setColorTimerMax] = useState(INITIAL_COLOR_TIMER);
+  const [colorTimer, setColorTimer] = useState(getTimerForLevel(INITIAL_LEVEL));
+  const [colorTimerMax, setColorTimerMax] = useState(getTimerForLevel(INITIAL_LEVEL));
+  const [level, setLevel] = useState(INITIAL_LEVEL);
+  const [matchesInCurrentLevel, setMatchesInCurrentLevel] = useState(0);
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>(getSettings);
@@ -140,8 +150,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         };
         savePlayer(authPlayer);
         setPlayer(authPlayer);
-        const bestScore = await getPlayerBestScoreAsync(authenticatedUser.name);
-        setPlayerBestScore(bestScore);
+        const bestRecord = await getPlayerBestRecordAsync(authenticatedUser.name);
+        setPlayerBestScore(bestRecord.score);
+        setPlayerBestLevel(bestRecord.level);
         setScreen('home');
       }
       setIsAuthLoading(false);
@@ -162,8 +173,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         };
         savePlayer(authPlayer);
         setPlayer(authPlayer);
-        const bestScore = await getPlayerBestScoreAsync(user.name);
-        setPlayerBestScore(bestScore);
+        const bestRecord = await getPlayerBestRecordAsync(user.name);
+        setPlayerBestScore(bestRecord.score);
+        setPlayerBestLevel(bestRecord.level);
         setScreen('home');
       } else if (event === 'signOut') {
         setAuthUser(null);
@@ -204,7 +216,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
 
         // Decrease color timer
-        setColorTimer((prev) => {
+        setColorTimer((prev: number) => {
           const newColorTime = prev - 0.1;
           if (newColorTime <= 0 && !colorTimerExpiredRef.current) {
             colorTimerExpiredRef.current = true;
@@ -244,24 +256,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
           await saveScoreAsync({
             playerName: player.name,
             score,
+            level,
             date: Date.now(),
           });
           const scores = await getTopScoresAsync(10);
           setTopScores(scores);
-          const bestScore = await getPlayerBestScoreAsync(player.name);
-          setPlayerBestScore(bestScore);
+          const bestRecord = await getPlayerBestRecordAsync(player.name);
+          setPlayerBestScore(bestRecord.score);
+          setPlayerBestLevel(bestRecord.level);
         }
       };
       saveAndUpdate();
       setScreen('gameOver');
       colorTimerExpiredRef.current = false;
     }
-  }, [isPlaying, colorTimer, settings.soundEnabled, player, score]);
+  }, [isPlaying, colorTimer, settings.soundEnabled, player, score, level]);
 
-  const getRandomColor = useCallback((): GameColor => {
-    const availableColors = GAME_COLORS.filter((c) => c !== currentColor);
+  const getColorsForLevel = useCallback((currentLevel: number): GameColor[] => {
+    const numColors = COLORS_PER_LEVEL[Math.min(currentLevel - 1, COLORS_PER_LEVEL.length - 1)];
+    return GAME_COLORS.slice(0, numColors);
+  }, []);
+
+  const getRandomColor = useCallback((currentLevel: number): GameColor => {
+    const levelColors = getColorsForLevel(currentLevel);
+    const availableColors = levelColors.filter((c) => c !== currentColor);
     return availableColors[Math.floor(Math.random() * availableColors.length)];
-  }, [currentColor]);
+  }, [currentColor, getColorsForLevel]);
 
   const logout = useCallback(async () => {
     // Sign out from Cognito if authenticated
@@ -272,6 +292,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     clearPlayer();
     setPlayer(null);
     setPlayerBestScore(0);
+    setPlayerBestLevel(0);
     setScreen('welcome');
   }, [authUser]);
 
@@ -284,8 +305,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
     savePlayer(authPlayer);
     setPlayer(authPlayer);
-    const bestScore = await getPlayerBestScoreAsync(user.name);
-    setPlayerBestScore(bestScore);
+    const bestRecord = await getPlayerBestRecordAsync(user.name);
+    setPlayerBestScore(bestRecord.score);
+    setPlayerBestLevel(bestRecord.level);
     setScreen('home');
   }, []);
 
@@ -322,14 +344,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setScore(0);
     setTimeRemaining(GAME_DURATION);
     setSpeed(INITIAL_SPEED);
-    setCurrentColor(GAME_COLORS[Math.floor(Math.random() * GAME_COLORS.length)]);
-    setColorTimer(INITIAL_COLOR_TIMER);
-    setColorTimerMax(INITIAL_COLOR_TIMER);
+    setLevel(INITIAL_LEVEL);
+    setMatchesInCurrentLevel(0);
+    const levelColors = getColorsForLevel(INITIAL_LEVEL);
+    setCurrentColor(levelColors[Math.floor(Math.random() * levelColors.length)]);
+    const initialTimer = getTimerForLevel(INITIAL_LEVEL);
+    setColorTimer(initialTimer);
+    setColorTimerMax(initialTimer);
     colorTimerExpiredRef.current = false;
     setIsPlaying(true);
     setScreen('playing');
     lastTickRef.current = GAME_DURATION;
-  }, []);
+  }, [getColorsForLevel]);
 
   const handleColorClick = useCallback(
     (color: GameColor) => {
@@ -340,12 +366,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (color === currentColor) {
         // Correct match
         setScore((prev) => prev + Math.round(10 * speed));
-        setCurrentColor(getRandomColor());
+        setMatchesInCurrentLevel((prev) => {
+          const newMatches = prev + 1;
 
-        // Reset and decrement color timer for next color
-        const newTimerMax = Math.max(MIN_COLOR_TIMER, colorTimerMax - COLOR_TIMER_DECREMENT);
-        setColorTimerMax(newTimerMax);
-        setColorTimer(newTimerMax);
+          // Check if player should level up
+          if (newMatches >= MATCHES_PER_LEVEL) {
+            setLevel((currentLevel) => {
+              const newLevel = currentLevel + 1;
+              setCurrentColor(getRandomColor(newLevel));
+              // Reset timer to new level's base time
+              const newLevelTimer = getTimerForLevel(newLevel);
+              setColorTimer(newLevelTimer);
+              setColorTimerMax(newLevelTimer);
+              return newLevel;
+            });
+            setIsPlaying(false);
+            setScreen('levelUp');
+            return 0; // Reset matches for new level
+          } else {
+            setCurrentColor(getRandomColor(level));
+            // Reset and slightly decrement color timer for next color
+            const newTimerMax = Math.max(MIN_COLOR_TIMER, colorTimerMax - COLOR_TIMER_DECREMENT);
+            setColorTimerMax(newTimerMax);
+            setColorTimer(newTimerMax);
+            return newMatches;
+          }
+        });
 
         if (settings.soundEnabled) {
           playCorrectSound();
@@ -365,19 +411,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
             await saveScoreAsync({
               playerName: player.name,
               score,
+              level,
               date: Date.now(),
             });
             const scores = await getTopScoresAsync(10);
             setTopScores(scores);
-            const bestScore = await getPlayerBestScoreAsync(player.name);
-            setPlayerBestScore(bestScore);
+            const bestRecord = await getPlayerBestRecordAsync(player.name);
+            setPlayerBestScore(bestRecord.score);
+            setPlayerBestLevel(bestRecord.level);
           }
         };
         saveAndUpdate();
         setScreen('gameOver');
       }
     },
-    [isPlaying, currentColor, getRandomColor, settings.soundEnabled, player, score, speed, colorTimerMax]
+    [isPlaying, currentColor, getRandomColor, settings.soundEnabled, player, score, speed, colorTimerMax, level]
   );
 
   const endGame = useCallback(() => {
@@ -396,18 +444,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
         await saveScoreAsync({
           playerName: player.name,
           score,
+          level,
           date: Date.now(),
         });
         const scores = await getTopScoresAsync(10);
         setTopScores(scores);
-        const bestScore = await getPlayerBestScoreAsync(player.name);
-        setPlayerBestScore(bestScore);
+        const bestRecord = await getPlayerBestRecordAsync(player.name);
+        setPlayerBestScore(bestRecord.score);
+        setPlayerBestLevel(bestRecord.level);
       }
     };
     saveAndUpdate();
 
     setScreen('gameOver');
-  }, [player, score, settings.soundEnabled]);
+  }, [player, score, level, settings.soundEnabled]);
+
+  const continuePlaying = useCallback(() => {
+    // Resume playing after level up
+    setIsPlaying(true);
+    setScreen('playing');
+  }, []);
 
   const toggleSound = useCallback(() => {
     setSettings((prev) => {
@@ -430,8 +486,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const scores = await getTopScoresAsync(10);
     setTopScores(scores);
     if (player) {
-      const bestScore = await getPlayerBestScoreAsync(player.name);
-      setPlayerBestScore(bestScore);
+      const bestRecord = await getPlayerBestRecordAsync(player.name);
+      setPlayerBestScore(bestRecord.score);
+      setPlayerBestLevel(bestRecord.level);
     }
     setIsLoadingScores(false);
   }, [player]);
@@ -442,6 +499,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         player,
         logout,
         playerBestScore,
+        playerBestLevel,
         updatePlayerName,
         authUser,
         isAuthLoading,
@@ -458,9 +516,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         isPlaying,
         colorTimer,
         colorTimerMax,
+        level,
+        matchesInCurrentLevel,
         startGame,
         handleColorClick,
         endGame,
+        continuePlaying,
         settings,
         toggleSound,
         toggleDarkMode,
