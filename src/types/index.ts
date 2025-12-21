@@ -87,7 +87,7 @@ export const MIN_COLOR_TIMER = 1.2; // minimum seconds (floor)
 export const COLOR_TIMER_DECREMENT = 0.02; // small decrease per successful match within level
 
 // Level system settings
-export const MATCHES_PER_LEVEL = 10; // number of matches needed to level up
+export const MATCHES_PER_LEVEL = 20; // number of matches needed to level up
 export const INITIAL_LEVEL = 1;
 export const COLORS_PER_LEVEL = [
   3, // Level 1: 3 colors
@@ -100,17 +100,17 @@ export const COLORS_PER_LEVEL = [
 
 /**
  * Calculate timer duration for a given level
- * - Levels 1-12: Gradual decrease from 5s to 2.5s
- * - Levels 13+: Faster decrease to minimum of 1.5s
+ * - Levels 1-10: Faster progression from 4.5s to 2s
+ * - Levels 11+: Continues to speed up to minimum of 1.2s
  */
 export function getTimerForLevel(level: number): number {
-  if (level <= 12) {
-    // Gentle curve for first 12 levels: 5s -> 2.5s
-    // Formula: 5 - (level - 1) * 0.23
-    return Math.max(2.5, 5 - (level - 1) * 0.23);
+  if (level <= 10) {
+    // Faster curve for first 10 levels: 4.5s -> 2s
+    // Formula: 4.5 - (level - 1) * 0.28
+    return Math.max(2, 4.5 - (level - 1) * 0.28);
   } else {
-    // Steeper curve after level 12: 2.5s -> 1.5s
-    // Formula: 2.5 - (level - 12) * 0.15
-    return Math.max(1.5, 2.5 - (level - 12) * 0.15);
+    // Continue speeding up after level 10: 2s -> 1.2s
+    // Formula: 2 - (level - 10) * 0.08
+    return Math.max(1.2, 2 - (level - 10) * 0.08);
   }
 }
