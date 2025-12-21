@@ -93,6 +93,7 @@ export async function saveScoreToDynamoDB(score: Omit<Score, 'date'>): Promise<b
           sk: `${timestamp}#${score.playerName}`,
           playerName: score.playerName,
           score: score.score,
+          level: score.level,
           date: timestamp,
           // GSI for querying by score (for leaderboard)
           gsi1pk: 'LEADERBOARD',
