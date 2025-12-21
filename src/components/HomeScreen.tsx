@@ -42,8 +42,8 @@ export function HomeScreen() {
               <h3 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 to-orange-500 tracking-tight">
                 RUSH
               </h3>
-            </div>
-          </div> */}
+            </div> */}
+          </div>
 
           {/* Best Score Display */}
           <div className="w-full max-w-sm bg-gradient-to-br from-yellow-400/20 to-orange-500/20 backdrop-blur-sm rounded-3xl p-6 border-2 border-yellow-400/50 shadow-2xl transform hover:scale-105 transition-all">
