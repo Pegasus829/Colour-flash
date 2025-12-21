@@ -139,6 +139,7 @@ export async function getTopScoresFromDynamoDB(limitCount: number = 10): Promise
     const scores = result.Items.map((item) => ({
       playerName: item.playerName as string,
       score: item.score as number,
+      level: (item.level as number) || 1, // Default to level 1 for old scores
       date: item.date as number,
     }))
       .sort((a, b) => b.score - a.score)
