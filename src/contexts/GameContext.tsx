@@ -13,12 +13,12 @@ import {
   INITIAL_SPEED,
   MAX_SPEED,
   SPEED_INCREMENT,
-  INITIAL_COLOR_TIMER,
   MIN_COLOR_TIMER,
   COLOR_TIMER_DECREMENT,
   MATCHES_PER_LEVEL,
   INITIAL_LEVEL,
   COLORS_PER_LEVEL,
+  getTimerForLevel,
 } from '../types';
 import {
   setPlayer as savePlayer,
@@ -115,8 +115,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [currentColor, setCurrentColor] = useState<GameColor>('red');
   const [speed, setSpeed] = useState(INITIAL_SPEED);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [colorTimer, setColorTimer] = useState(INITIAL_COLOR_TIMER);
-  const [colorTimerMax, setColorTimerMax] = useState(INITIAL_COLOR_TIMER);
+  const [colorTimer, setColorTimer] = useState(getTimerForLevel(INITIAL_LEVEL));
+  const [colorTimerMax, setColorTimerMax] = useState(getTimerForLevel(INITIAL_LEVEL));
   const [level, setLevel] = useState(INITIAL_LEVEL);
   const [matchesInCurrentLevel, setMatchesInCurrentLevel] = useState(0);
 
@@ -216,7 +216,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
 
         // Decrease color timer
-        setColorTimer((prev) => {
+        setColorTimer((prev: number) => {
           const newColorTime = prev - 0.1;
           if (newColorTime <= 0 && !colorTimerExpiredRef.current) {
             colorTimerExpiredRef.current = true;
@@ -348,8 +348,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setMatchesInCurrentLevel(0);
     const levelColors = getColorsForLevel(INITIAL_LEVEL);
     setCurrentColor(levelColors[Math.floor(Math.random() * levelColors.length)]);
-    setColorTimer(INITIAL_COLOR_TIMER);
-    setColorTimerMax(INITIAL_COLOR_TIMER);
+    const initialTimer = getTimerForLevel(INITIAL_LEVEL);
+    setColorTimer(initialTimer);
+    setColorTimerMax(initialTimer);
     colorTimerExpiredRef.current = false;
     setIsPlaying(true);
     setScreen('playing');
@@ -373,6 +374,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
             setLevel((currentLevel) => {
               const newLevel = currentLevel + 1;
               setCurrentColor(getRandomColor(newLevel));
+              // Reset timer to new level's base time
+              const newLevelTimer = getTimerForLevel(newLevel);
+              setColorTimer(newLevelTimer);
+              setColorTimerMax(newLevelTimer);
               return newLevel;
             });
             setIsPlaying(false);
@@ -380,14 +385,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
             return 0; // Reset matches for new level
           } else {
             setCurrentColor(getRandomColor(level));
+            // Reset and slightly decrement color timer for next color
+            const newTimerMax = Math.max(MIN_COLOR_TIMER, colorTimerMax - COLOR_TIMER_DECREMENT);
+            setColorTimerMax(newTimerMax);
+            setColorTimer(newTimerMax);
             return newMatches;
           }
         });
-
-        // Reset and decrement color timer for next color
-        const newTimerMax = Math.max(MIN_COLOR_TIMER, colorTimerMax - COLOR_TIMER_DECREMENT);
-        setColorTimerMax(newTimerMax);
-        setColorTimer(newTimerMax);
 
         if (settings.soundEnabled) {
           playCorrectSound();
