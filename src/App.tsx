@@ -5,6 +5,7 @@ import {
   HomeScreen,
   GameScreen,
   GameOverScreen,
+  ProfileScreen,
 } from './components';
 
 function GameRouter() {
@@ -21,6 +22,8 @@ function GameRouter() {
       return <GameScreen />;
     case 'gameOver':
       return <GameOverScreen />;
+    case 'profile':
+      return <ProfileScreen />;
     default:
       return <WelcomeScreen />;
   }

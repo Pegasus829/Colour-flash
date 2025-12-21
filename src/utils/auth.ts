@@ -8,6 +8,7 @@ import {
   fetchAuthSession,
   fetchUserAttributes,
   updateUserAttributes,
+  updatePassword,
 } from '@aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
 import type { HubCallback } from '@aws-amplify/core';
@@ -122,6 +123,20 @@ export async function updateDisplayName(name: string): Promise<void> {
     userAttributes: {
       name,
     },
+  });
+}
+
+/**
+ * Change user's password
+ */
+export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  if (!isAuthConfigured) {
+    throw new Error('Auth not configured');
+  }
+
+  await updatePassword({
+    oldPassword,
+    newPassword,
   });
 }
 
