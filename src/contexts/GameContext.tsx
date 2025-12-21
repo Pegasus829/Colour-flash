@@ -392,6 +392,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
           // Check if player should level up
           if (newMatches >= MATCHES_PER_LEVEL) {
+            // Pause the game immediately to prevent timer expiration during celebration
+            setIsPlaying(false);
             setLevel((currentLevel) => {
               const newLevel = currentLevel + 1;
               setCurrentColor(getRandomColor(newLevel));
@@ -405,7 +407,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
             setShowingLevelCelebration(true);
             // After celebration, transition to level up screen
             setTimeout(() => {
-              setIsPlaying(false);
               setShowingLevelCelebration(false);
               setScreen('levelUp');
             }, 1500); // 1.5 second celebration
