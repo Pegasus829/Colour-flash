@@ -14,6 +14,8 @@ export function GameScreen() {
     colorTimer,
     colorTimerMax,
     level,
+    comboCount,
+    showingLevelCelebration,
   } = useGame();
 
   // Get colors available for current level and shuffle them for display
@@ -130,6 +132,24 @@ export function GameScreen() {
           }`}>
             {colorTimer.toFixed(1)}s
           </p>
+
+          {/* Combo Counter */}
+          {comboCount > 0 && (
+            <div className="mt-4 flex items-center justify-center">
+              <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white px-6 py-3 rounded-full shadow-2xl transform animate-pulse">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🔥</span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider opacity-90">Combo</p>
+                    <p className="text-2xl font-black">{comboCount}x</p>
+                  </div>
+                  <span className="text-xl font-black">
+                    +{Math.round(comboCount * 50)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -148,6 +168,35 @@ export function GameScreen() {
           </div>
         </div>
       </main>
+
+      {/* Level Complete Celebration Overlay */}
+      {showingLevelCelebration && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="text-center space-y-4 animate-bounce">
+            {/* Fireworks Emojis */}
+            <div className="flex justify-center gap-4 text-6xl">
+              <span className="animate-pulse">🎆</span>
+              <span className="animate-pulse delay-100">✨</span>
+              <span className="animate-pulse delay-200">🎉</span>
+              <span className="animate-pulse delay-100">✨</span>
+              <span className="animate-pulse">🎆</span>
+            </div>
+
+            {/* Level Complete Message */}
+            <div className="bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-600 text-white px-12 py-6 rounded-3xl shadow-2xl">
+              <p className="text-5xl font-black mb-2">LEVEL {level - 1}</p>
+              <p className="text-2xl font-bold">COMPLETE!</p>
+            </div>
+
+            {/* More celebration effects */}
+            <div className="flex justify-center gap-3 text-4xl">
+              <span className="animate-spin">⭐</span>
+              <span className="animate-bounce">🏆</span>
+              <span className="animate-spin">⭐</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
