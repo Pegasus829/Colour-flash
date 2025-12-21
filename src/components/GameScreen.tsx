@@ -15,6 +15,7 @@ export function GameScreen() {
     colorTimerMax,
     level,
     comboCount,
+    showingLevelCelebration,
   } = useGame();
 
   // Get colors available for current level and shuffle them for display
@@ -167,6 +168,35 @@ export function GameScreen() {
           </div>
         </div>
       </main>
+
+      {/* Level Complete Celebration Overlay */}
+      {showingLevelCelebration && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="text-center space-y-4 animate-bounce">
+            {/* Fireworks Emojis */}
+            <div className="flex justify-center gap-4 text-6xl">
+              <span className="animate-pulse">🎆</span>
+              <span className="animate-pulse delay-100">✨</span>
+              <span className="animate-pulse delay-200">🎉</span>
+              <span className="animate-pulse delay-100">✨</span>
+              <span className="animate-pulse">🎆</span>
+            </div>
+
+            {/* Level Complete Message */}
+            <div className="bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-600 text-white px-12 py-6 rounded-3xl shadow-2xl">
+              <p className="text-5xl font-black mb-2">LEVEL {level - 1}</p>
+              <p className="text-2xl font-bold">COMPLETE!</p>
+            </div>
+
+            {/* More celebration effects */}
+            <div className="flex justify-center gap-3 text-4xl">
+              <span className="animate-spin">⭐</span>
+              <span className="animate-bounce">🏆</span>
+              <span className="animate-spin">⭐</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

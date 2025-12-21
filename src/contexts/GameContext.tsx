@@ -78,6 +78,7 @@ interface GameContextType {
   level: number;
   matchesInCurrentLevel: number;
   comboCount: number;
+  showingLevelCelebration: boolean;
 
   // Game actions
   startGame: () => void;
@@ -121,6 +122,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [level, setLevel] = useState(INITIAL_LEVEL);
   const [matchesInCurrentLevel, setMatchesInCurrentLevel] = useState(0);
   const [comboCount, setComboCount] = useState(0);
+  const [showingLevelCelebration, setShowingLevelCelebration] = useState(false);
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>(getSettings);
@@ -349,6 +351,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setLevel(INITIAL_LEVEL);
     setMatchesInCurrentLevel(0);
     setComboCount(0);
+    setShowingLevelCelebration(false);
     const levelColors = getColorsForLevel(INITIAL_LEVEL);
     setCurrentColor(levelColors[Math.floor(Math.random() * levelColors.length)]);
     const initialTimer = getTimerForLevel(INITIAL_LEVEL);
@@ -398,8 +401,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
               setColorTimerMax(newLevelTimer);
               return newLevel;
             });
-            setIsPlaying(false);
-            setScreen('levelUp');
+            // Show celebration overlay first
+            setShowingLevelCelebration(true);
+            // After celebration, transition to level up screen
+            setTimeout(() => {
+              setIsPlaying(false);
+              setShowingLevelCelebration(false);
+              setScreen('levelUp');
+            }, 1500); // 1.5 second celebration
             return 0; // Reset matches for new level
           } else {
             setCurrentColor(getRandomColor(level));
@@ -538,6 +547,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         level,
         matchesInCurrentLevel,
         comboCount,
+        showingLevelCelebration,
         startGame,
         handleColorClick,
         endGame,
