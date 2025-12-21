@@ -31,7 +31,7 @@ export function HomeScreen() {
         <div className="max-w-lg mx-auto space-y-6 flex flex-col items-center">
           {/* Logo */}
           <div className="w-full max-w-md px-4 py-8 flex justify-center">
-            <img src="/public/logo.png" alt="Colour Match Rush" className="w-full h-auto" />
+            <img src="/logo.png" alt="Colour Match Rush" className="w-full h-auto drop-shadow-2xl" />
             {/*<div className="text-center">
               <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-yellow-500 via-green-500 via-blue-500 to-purple-500 mb-2 tracking-tight">
                 COLOUR
