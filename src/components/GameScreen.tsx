@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useGame } from '../contexts/GameContext';
 import type { GameColor } from '../types';
-import { GAME_COLORS, COLOR_VALUES, COLOR_NAMES, GAME_DURATION } from '../types';
+import { GAME_COLORS, COLOR_VALUES, COLOR_NAMES, GAME_DURATION, COLORS_PER_LEVEL } from '../types';
 
 export function GameScreen() {
   const {
@@ -13,18 +13,23 @@ export function GameScreen() {
     settings,
     colorTimer,
     colorTimerMax,
+    level,
   } = useGame();
 
-  // Shuffle colors for display (but keep consistent during game)
+  // Get colors available for current level and shuffle them for display
   const displayColors = useMemo(() => {
+    // Get colors available for this level
+    const numColors = COLORS_PER_LEVEL[Math.min(level - 1, COLORS_PER_LEVEL.length - 1)];
+    const levelColors = GAME_COLORS.slice(0, numColors);
+
     // Create a shuffled copy
-    const shuffled = [...GAME_COLORS];
+    const shuffled = [...levelColors];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
-  }, []);
+  }, [level]);
 
   const timePercent = (timeRemaining / GAME_DURATION) * 100;
   const isLowTime = timeRemaining <= 10;
@@ -36,12 +41,18 @@ export function GameScreen() {
       {/* Header with stats */}
       <header className="flex-shrink-0 p-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
         <div className="max-w-lg mx-auto">
-          {/* Score and Timer Row */}
+          {/* Score, Level, and Timer Row */}
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Score</p>
               <p className="text-3xl font-bold text-slate-800 dark:text-white">
                 {score.toLocaleString()}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Level</p>
+              <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500">
+                {level}
               </p>
             </div>
             <div className="text-right">
