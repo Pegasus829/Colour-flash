@@ -49,7 +49,7 @@ export function HomeScreen() {
           <div className="w-full max-w-sm bg-gradient-to-br from-yellow-400/20 to-orange-500/20 backdrop-blur-sm rounded-3xl p-6 border-2 border-yellow-400/50 shadow-2xl transform hover:scale-105 transition-all">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-yellow-200 text-sm font-semibold uppercase tracking-wide">Best Score</p>
+                <p className="text-yellow-200 text-sm font-semibold uppercase tracking-wide">{player?.name}'s Best Score</p>
                 <p className="text-5xl font-black text-white mt-1">
                   {playerBestScore > 0 ? playerBestScore.toLocaleString() : '—'}
                 </p>
