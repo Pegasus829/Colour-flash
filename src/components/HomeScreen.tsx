@@ -6,28 +6,18 @@ export function HomeScreen() {
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Header with Profile Icon */}
-      <header className="flex-shrink-0 p-4 bg-white/10 backdrop-blur-sm border-b border-white/20">
-        <div className="flex items-center justify-between">
-          <div className="w-12"></div> {/* Spacer for centering */}
-          <div className="text-center">
-            <p className="text-white/80 text-sm">Welcome back</p>
-            <p className="text-white font-bold text-lg">{player?.name}</p>
-          </div>
-          {/* Profile Icon */}
-          <button
-            onClick={() => setScreen('profile')}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-110 active:scale-95 transition-all border-2 border-white/30"
-          >
-            <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
-          </button>
-        </div>
-      </header>
-
       {/* Main Content */}
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-auto p-6 relative">
+        {/* Profile Icon - Floating in top right */}
+        <button
+          onClick={() => setScreen('profile')}
+          className="absolute top-6 right-6 w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-110 active:scale-95 transition-all border-2 border-white/30 z-10"
+        >
+          <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+        </button>
+
         <div className="max-w-lg mx-auto space-y-6 flex flex-col items-center">
           {/* Logo */}
           <div className="w-full max-w-md px-4 py-8 flex justify-center">
