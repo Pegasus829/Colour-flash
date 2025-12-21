@@ -45,6 +45,15 @@ export function HomeScreen() {
             </div> */}
           </div>
 
+          {/* Start Game Button */}
+          <button
+            onClick={startGame}
+            className="w-full max-w-sm bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-black text-2xl py-6 px-8 rounded-3xl shadow-2xl transform hover:scale-105 active:scale-95 transition-all border-4 border-white/30 flex items-center justify-center gap-3"
+          >
+            <span className="text-3xl">▶</span>
+            <span>PLAY NOW</span>
+          </button>
+
           {/* Best Score Display */}
           <div className="w-full max-w-sm bg-gradient-to-br from-yellow-400/20 to-orange-500/20 backdrop-blur-sm rounded-3xl p-6 border-2 border-yellow-400/50 shadow-2xl transform hover:scale-105 transition-all">
             <div className="flex items-center justify-between">
@@ -57,15 +66,6 @@ export function HomeScreen() {
               <div className="text-6xl drop-shadow-lg">🏆</div>
             </div>
           </div>
-
-          {/* Start Game Button */}
-          <button
-            onClick={startGame}
-            className="w-full max-w-sm bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-black text-2xl py-6 px-8 rounded-3xl shadow-2xl transform hover:scale-105 active:scale-95 transition-all border-4 border-white/30 flex items-center justify-center gap-3"
-          >
-            <span className="text-3xl">▶</span>
-            <span>PLAY NOW</span>
-          </button>
 
           {/* Leaderboard */}
           <div className="w-full max-w-sm">
