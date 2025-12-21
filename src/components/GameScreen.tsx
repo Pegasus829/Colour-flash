@@ -14,6 +14,7 @@ export function GameScreen() {
     colorTimer,
     colorTimerMax,
     level,
+    comboCount,
   } = useGame();
 
   // Get colors available for current level and shuffle them for display
@@ -130,6 +131,24 @@ export function GameScreen() {
           }`}>
             {colorTimer.toFixed(1)}s
           </p>
+
+          {/* Combo Counter */}
+          {comboCount > 0 && (
+            <div className="mt-4 flex items-center justify-center">
+              <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white px-6 py-3 rounded-full shadow-2xl transform animate-pulse">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🔥</span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider opacity-90">Combo</p>
+                    <p className="text-2xl font-black">{comboCount}x</p>
+                  </div>
+                  <span className="text-xl font-black">
+                    +{Math.round(comboCount * 50)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

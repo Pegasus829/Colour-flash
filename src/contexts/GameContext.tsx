@@ -77,6 +77,7 @@ interface GameContextType {
   colorTimerMax: number;
   level: number;
   matchesInCurrentLevel: number;
+  comboCount: number;
 
   // Game actions
   startGame: () => void;
@@ -119,6 +120,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [colorTimerMax, setColorTimerMax] = useState(getTimerForLevel(INITIAL_LEVEL));
   const [level, setLevel] = useState(INITIAL_LEVEL);
   const [matchesInCurrentLevel, setMatchesInCurrentLevel] = useState(0);
+  const [comboCount, setComboCount] = useState(0);
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>(getSettings);
@@ -346,6 +348,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setSpeed(INITIAL_SPEED);
     setLevel(INITIAL_LEVEL);
     setMatchesInCurrentLevel(0);
+    setComboCount(0);
     const levelColors = getColorsForLevel(INITIAL_LEVEL);
     setCurrentColor(levelColors[Math.floor(Math.random() * levelColors.length)]);
     const initialTimer = getTimerForLevel(INITIAL_LEVEL);
@@ -365,7 +368,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       if (color === currentColor) {
         // Correct match
-        setScore((prev) => prev + Math.round(10 * speed));
+        // Check if selection was made within 1 second for combo bonus
+        const isFastClick = colorTimer > (colorTimerMax - 1);
+
+        // Update combo count
+        if (isFastClick) {
+          setComboCount((prev) => prev + 1);
+        } else {
+          setComboCount(0);
+        }
+
+        // Calculate score with combo multiplier
+        // Base: 1x, Each combo level adds 0.5x (1.5x, 2x, 2.5x, etc.)
+        const comboMultiplier = isFastClick ? 1 + (comboCount + 1) * 0.5 : 1;
+        const points = Math.round(10 * speed * comboMultiplier);
+        setScore((prev) => prev + points);
+
         setMatchesInCurrentLevel((prev) => {
           const newMatches = prev + 1;
 
@@ -397,7 +415,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           playCorrectSound();
         }
       } else {
-        // Wrong match - end game
+        // Wrong match - end game, reset combo
+        setComboCount(0);
         setIsPlaying(false);
         if (settings.soundEnabled) {
           playWrongSound();
@@ -425,7 +444,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setScreen('gameOver');
       }
     },
-    [isPlaying, currentColor, getRandomColor, settings.soundEnabled, player, score, speed, colorTimerMax, level]
+    [isPlaying, currentColor, getRandomColor, settings.soundEnabled, player, score, speed, colorTimerMax, colorTimer, level, comboCount]
   );
 
   const endGame = useCallback(() => {
@@ -518,6 +537,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         colorTimerMax,
         level,
         matchesInCurrentLevel,
+        comboCount,
         startGame,
         handleColorClick,
         endGame,
