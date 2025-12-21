@@ -29,7 +29,8 @@ export type GameScreen =
   | 'instructions'
   | 'home'
   | 'playing'
-  | 'gameOver';
+  | 'gameOver'
+  | 'profile';
 
 export interface GameState {
   screen: GameScreen;

@@ -41,6 +41,8 @@ import {
   confirmSignUpWithCode as authConfirmSignUp,
   signOutUser,
   onAuthStateChange,
+  updateDisplayName,
+  changePassword as authChangePassword,
   type AuthUser,
 } from '../utils/auth';
 
@@ -49,6 +51,7 @@ interface GameContextType {
   player: Player | null;
   logout: () => void;
   playerBestScore: number;
+  updatePlayerName: (name: string) => Promise<void>;
 
   // Auth
   authUser: AuthUser | null;
@@ -56,6 +59,7 @@ interface GameContextType {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<{ needsConfirmation: boolean }>;
   confirmSignUp: (email: string, code: string) => Promise<void>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 
   // Game state
   screen: GameScreen;
@@ -293,6 +297,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
     await authConfirmSignUp(email, code);
   }, []);
 
+  const updatePlayerName = useCallback(async (name: string) => {
+    if (authUser) {
+      // Update name in Cognito
+      await updateDisplayName(name);
+      // Update local auth user state
+      setAuthUser({ ...authUser, name });
+    }
+    // Update player state
+    const updatedPlayer: Player = {
+      name,
+      createdAt: player?.createdAt || Date.now(),
+    };
+    savePlayer(updatedPlayer);
+    setPlayer(updatedPlayer);
+  }, [authUser, player]);
+
+  const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
+    await authChangePassword(oldPassword, newPassword);
+  }, []);
+
   const startGame = useCallback(() => {
     resumeAudioContext();
     setScore(0);
@@ -418,11 +442,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         player,
         logout,
         playerBestScore,
+        updatePlayerName,
         authUser,
         isAuthLoading,
         signInWithEmail,
         signUpWithEmail,
         confirmSignUp,
+        changePassword,
         screen,
         setScreen,
         score,
