@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Color Match Rush - Centralized Leaderboard with Cognito Email/Password Auth'
+Description: 'Color Match Rush - Leaderboard API with Cognito email/password auth'
 
 Parameters:
   TableName:
@@ -7,13 +7,8 @@ Parameters:
     Default: 'color-match-rush-scores'
     Description: Name for the DynamoDB table
 
-  CallbackURL:
-    Type: String
-    Default: 'http://localhost:5173'
-    Description: Your app URL (for OAuth callbacks)
-
 Resources:
-  # DynamoDB Table for storing scores
+  # One row per player. The leaderboard GSI is queried for the top N scores.
   ScoresTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -24,11 +19,24 @@ Resources:
           AttributeType: S
         - AttributeName: sk
           AttributeType: S
+        - AttributeName: gsi1pk
+          AttributeType: S
+        - AttributeName: gsi1sk
+          AttributeType: N
       KeySchema:
         - AttributeName: pk
           KeyType: HASH
         - AttributeName: sk
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: LeaderboardIndex
+          KeySchema:
+            - AttributeName: gsi1pk
+              KeyType: HASH
+            - AttributeName: gsi1sk
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Application
           Value: ColorMatchRush
@@ -49,11 +57,11 @@ Resources:
           Required: false
       Policies:
         PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: false
-          RequireNumbers: false
-          RequireSymbols: false
-          RequireUppercase: false
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
       EmailConfiguration:
         EmailSendingAccount: COGNITO_DEFAULT
 
@@ -78,17 +86,18 @@ Resources:
         IdToken: hours
         RefreshToken: days
 
-  # Cognito Identity Pool (for DynamoDB access)
+  # Identity pool stays so an existing stack can update in place. Guests cannot
+  # sign in, and neither browser role can call DynamoDB. Scores go through the API.
   IdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
       IdentityPoolName: ColorMatchRushIdentityPool
-      AllowUnauthenticatedIdentities: true
+      AllowUnauthenticatedIdentities: false
       CognitoIdentityProviders:
         - ClientId: !Ref UserPoolClient
           ProviderName: !GetAtt UserPool.ProviderName
 
-  # IAM Role for authenticated users
+  # Signed-in browser identities. No DynamoDB access.
   AuthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
@@ -105,19 +114,17 @@ Resources:
               ForAnyValue:StringLike:
                 'cognito-identity.amazonaws.com:amr': authenticated
       Policies:
-        - PolicyName: DynamoDBLeaderboardAccess
+        - PolicyName: NoDynamoDBAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:Scan
-                  - dynamodb:Query
-                  - dynamodb:GetItem
-                Resource: !GetAtt ScoresTable.Arn
+              - Effect: Deny
+                Action: dynamodb:*
+                Resource: '*'
 
-  # IAM Role for unauthenticated users (read-only leaderboard)
+  # Guest browser identities. Kept so the stack update does not have to detach
+  # the role in the same change that disables unauthenticated sign-in.
+  # This role cannot call DynamoDB.
   UnauthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
@@ -134,16 +141,14 @@ Resources:
               ForAnyValue:StringLike:
                 'cognito-identity.amazonaws.com:amr': unauthenticated
       Policies:
-        - PolicyName: DynamoDBLeaderboardReadOnly
+        - PolicyName: NoDynamoDBAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:Scan
-                Resource: !GetAtt ScoresTable.Arn
+              - Effect: Deny
+                Action: dynamodb:*
+                Resource: '*'
 
-  # Attach roles to identity pool
   IdentityPoolRoleAttachment:
     Type: AWS::Cognito::IdentityPoolRoleAttachment
     Properties:
@@ -151,6 +156,219 @@ Resources:
       Roles:
         authenticated: !GetAtt AuthenticatedRole.Arn
         unauthenticated: !GetAtt UnauthenticatedRole.Arn
+
+  ScoresFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ScoresTableAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                Resource: !GetAtt ScoresTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt ScoresTable.Arn
+                  - !Sub '${ScoresTable.Arn}/index/LeaderboardIndex'
+
+  ScoresFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 5
+      MemorySize: 128
+      Role: !GetAtt ScoresFunctionRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ScoresTable
+      Code:
+        ZipFile: |
+          import json,os,time,boto3
+          from botocore.exceptions import ClientError
+          MAX_SCORE,MAX_LEVEL,MAX_NAME,MAX_LIMIT=5000000,100,32,50
+          _TABLE=None
+          def table():
+              global _TABLE
+              if _TABLE is None:
+                  _TABLE=boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
+              return _TABLE
+          def resp(code,body):
+              return {"statusCode":code,"headers":{"content-type":"application/json"},"body":json.dumps(body)}
+          def claims(event):
+              return (((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt") or {}).get("claims") or {}
+          def user_sub(event):
+              value=claims(event).get("sub")
+              return value if isinstance(value,str) and 0<len(value)<=128 else None
+          def whole(value):
+              if isinstance(value,bool):
+                  return None
+              if isinstance(value,int):
+                  return value
+              if isinstance(value,float) and value.is_integer():
+                  return int(value)
+              if isinstance(value,str) and value.isdigit():
+                  return int(value)
+              return None
+          def clean_name(value,fallback):
+              raw=value if isinstance(value,str) and value.strip() else fallback
+              if not isinstance(raw,str):
+                  raw="Player"
+              cleaned=" ".join("".join(ch for ch in raw if ch.isprintable() and ch not in "<>").split())[:MAX_NAME].strip()
+              return cleaned or "Player"
+          def public(item):
+              return {"playerName":clean_name(item.get("playerName"),"Player"),"score":int(item.get("score") or 0),"level":int(item.get("level") or 1),"date":int(item.get("date") or 0)}
+          def handler(event,context):
+              try:
+                  route=event.get("routeKey")
+                  if route=="GET /scores":
+                      return top_scores(event)
+                  if route=="GET /scores/me":
+                      return my_score(event)
+                  if route=="POST /scores":
+                      return save_score(event)
+                  return resp(404,{"error":"not found"})
+              except Exception:
+                  return resp(500,{"error":"internal"})
+          def top_scores(event):
+              qs=event.get("queryStringParameters") or {}
+              limit=whole(qs.get("limit"))
+              if limit is None:
+                  limit=10
+              limit=min(max(limit,1),MAX_LIMIT)
+              result=table().query(IndexName="LeaderboardIndex",KeyConditionExpression="gsi1pk = :pk",ExpressionAttributeValues={":pk":"LEADERBOARD"},ScanIndexForward=False,Limit=limit)
+              return resp(200,{"scores":[public(item) for item in result.get("Items",[])]})
+          def my_score(event):
+              user=user_sub(event)
+              if not user:
+                  return resp(401,{"error":"unauthorized"})
+              item=table().get_item(Key={"pk":"USER#"+user,"sk":"SCORE"},ConsistentRead=True).get("Item")
+              return resp(200,public(item) if item else {"playerName":"","score":0,"level":0,"date":0})
+          def save_score(event):
+              user=user_sub(event)
+              if not user:
+                  return resp(401,{"error":"unauthorized"})
+              raw=event.get("body") or ""
+              if not isinstance(raw,str) or len(raw)>2048:
+                  return resp(400,{"error":"invalid"})
+              try:
+                  body=json.loads(raw or "{}")
+              except json.JSONDecodeError:
+                  return resp(400,{"error":"invalid"})
+              if not isinstance(body,dict):
+                  return resp(400,{"error":"invalid"})
+              score=whole(body.get("score"))
+              level=whole(body.get("level")) if body.get("level") is not None else 1
+              if score is None or not 1<=score<=MAX_SCORE or level is None or not 1<=level<=MAX_LEVEL:
+                  return resp(400,{"error":"invalid score"})
+              name=clean_name(body.get("playerName"),claims(event).get("name") or "Player")
+              item={"pk":"USER#"+user,"sk":"SCORE","playerName":name,"score":score,"level":level,"date":int(time.time()*1000),"gsi1pk":"LEADERBOARD","gsi1sk":score}
+              try:
+                  table().put_item(Item=item,ConditionExpression="attribute_not_exists(pk) OR score < :score",ExpressionAttributeValues={":score":score})
+              except ClientError as err:
+                  if err.response.get("Error",{}).get("Code")=="ConditionalCheckFailedException":
+                      return resp(200,{"saved":False})
+                  raise
+              return resp(200,{"saved":True})
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: ColorMatchRushHttpApi
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - authorization
+          - content-type
+        MaxAge: 600
+
+  ScoresAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref HttpApi
+      AuthorizerType: JWT
+      Name: CognitoJwt
+      IdentitySource:
+        - $request.header.Authorization
+      JwtConfiguration:
+        Audience:
+          - !Ref UserPoolClient
+        Issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+
+  ScoresIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ScoresFunction.Arn}/invocations'
+      PayloadFormatVersion: '2.0'
+
+  GetScoresRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /scores'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${ScoresIntegration}'
+
+  GetMyScoreRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /scores/me'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref ScoresAuthorizer
+      Target: !Sub 'integrations/${ScoresIntegration}'
+
+  PostScoreRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /scores'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref ScoresAuthorizer
+      Target: !Sub 'integrations/${ScoresIntegration}'
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ScoresFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    DependsOn:
+      - GetScoresRoute
+      - GetMyScoreRoute
+      - PostScoreRoute
+      - LambdaPermission
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: '$default'
+      AutoDeploy: true
 
 Outputs:
   Region:
@@ -173,6 +391,10 @@ Outputs:
     Description: DynamoDB Table Name
     Value: !Ref ScoresTable
 
+  ApiUrl:
+    Description: Leaderboard HTTP API URL
+    Value: !GetAtt HttpApi.ApiEndpoint
+
   EnvFileContents:
     Description: Copy this to your .env file
     Value: !Sub |
@@ -181,3 +403,4 @@ Outputs:
       VITE_AWS_USER_POOL_CLIENT_ID=${UserPoolClient}
       VITE_AWS_IDENTITY_POOL_ID=${IdentityPool}
       VITE_AWS_DYNAMODB_TABLE=${ScoresTable}
+      VITE_AWS_API_URL=${HttpApi.ApiEndpoint}
