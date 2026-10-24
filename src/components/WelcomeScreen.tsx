@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useGame } from '../contexts/GameContext';
+import { PASSWORD_POLICY_MESSAGE, passwordMeetsPolicy } from '../utils/auth';
 
 type AuthMode = 'signin' | 'signup' | 'confirm';
 
@@ -39,8 +40,8 @@ export function WelcomeScreen() {
     e.preventDefault();
     setError('');
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (!passwordMeetsPolicy(password)) {
+      setError(PASSWORD_POLICY_MESSAGE);
       return;
     }
 
@@ -204,10 +205,10 @@ export function WelcomeScreen() {
                     type="password"
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                    placeholder="Password (8+ characters)"
+                    placeholder="Password (12+ characters)"
                     className="input-field"
                     autoComplete="new-password"
-                    minLength={8}
+                    minLength={12}
                     disabled={isLoading}
                     required
                   />

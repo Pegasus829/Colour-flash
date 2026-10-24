@@ -7,14 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "python3 -m unittest discover -s infrastructure -p 'test_*.py'",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aws-amplify/auth": "^6.17.1",
-    "@aws-sdk/client-dynamodb": "^3.952.0",
-    "@aws-sdk/credential-providers": "^3.952.0",
-    "@aws-sdk/lib-dynamodb": "^3.952.0",
-    "aws-amplify": "^6.15.9",
+    "@aws-amplify/auth": "^6.21.2",
+    "aws-amplify": "^6.22.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

@@ -5,6 +5,7 @@ import {
   getTopScoresFromDynamoDB,
   isNameUniqueInDynamoDB,
   getPlayerBestScoreFromDynamoDB,
+  getMyBestFromDynamoDB,
 } from './aws';
 
 const PLAYER_KEY = 'colorMatchRush_player';
@@ -15,10 +16,14 @@ const SETTINGS_KEY = 'colorMatchRush_settings';
 export { isAwsEnabled as isFirebaseEnabled };
 
 // Cookie utilities for session storage
+function cookieAttributes(): string {
+  return ';path=/;SameSite=Strict;Secure';
+}
+
 export function setCookie(name: string, value: string, days: number = 30): void {
   const expires = new Date();
   expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()}${cookieAttributes()}`;
 }
 
 export function getCookie(name: string): string | null {
@@ -34,7 +39,7 @@ export function getCookie(name: string): string | null {
 }
 
 export function deleteCookie(name: string): void {
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT${cookieAttributes()}`;
 }
 
 // Player management
@@ -191,7 +196,13 @@ export async function getPlayerBestScoreAsync(playerName: string): Promise<numbe
 }
 
 export async function getPlayerBestRecordAsync(playerName: string): Promise<{ score: number; level: number }> {
-  // For now, just use local storage
-  // TODO: Expand to fetch from DynamoDB when available
-  return getPlayerBestRecord(playerName);
+  const local = getPlayerBestRecord(playerName);
+  if (!isAwsEnabled()) {
+    return local;
+  }
+  const remote = await getMyBestFromDynamoDB();
+  if (!remote || remote.score <= local.score) {
+    return local;
+  }
+  return { score: remote.score, level: remote.level };
 }

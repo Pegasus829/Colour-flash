@@ -22,19 +22,30 @@ export interface AuthUser {
 // Check if auth is configured
 const userPoolId = import.meta.env.VITE_AWS_USER_POOL_ID || '';
 const userPoolClientId = import.meta.env.VITE_AWS_USER_POOL_CLIENT_ID || '';
-const identityPoolId = import.meta.env.VITE_AWS_IDENTITY_POOL_ID || '';
 const region = import.meta.env.VITE_AWS_REGION || '';
 
 const isAuthConfigured = Boolean(userPoolId && userPoolClientId && region);
 
-// Configure Amplify
+export const PASSWORD_POLICY_MESSAGE =
+  'Password must be at least 12 characters and include upper and lower case letters, a number, and a symbol';
+
+export function passwordMeetsPolicy(password: string): boolean {
+  return (
+    password.length >= 12 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+}
+
+// Configure Amplify for the user pool only. The app does not request identity-pool credentials.
 if (isAuthConfigured) {
   Amplify.configure({
     Auth: {
       Cognito: {
         userPoolId,
         userPoolClientId,
-        identityPoolId,
       },
     },
   });

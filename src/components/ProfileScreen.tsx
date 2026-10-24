@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGame } from '../contexts/GameContext';
+import { PASSWORD_POLICY_MESSAGE, passwordMeetsPolicy } from '../utils/auth';
 
 export function ProfileScreen() {
   const {
@@ -54,8 +55,8 @@ export function ProfileScreen() {
       return;
     }
 
-    if (newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters');
+    if (!passwordMeetsPolicy(newPassword)) {
+      setPasswordError(PASSWORD_POLICY_MESSAGE);
       return;
     }
 
@@ -174,7 +175,7 @@ export function ProfileScreen() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="input-field w-full"
-                placeholder="New password"
+                placeholder="New password (12+ characters)"
               />
               <input
                 type="password"
