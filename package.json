@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aws-amplify/auth": "^6.17.1",
+    "@aws-amplify/auth": "^6.21.2",
     "@aws-sdk/client-dynamodb": "^3.952.0",
     "@aws-sdk/credential-providers": "^3.952.0",
     "@aws-sdk/lib-dynamodb": "^3.952.0",
