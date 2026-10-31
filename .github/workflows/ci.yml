@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    # main is the default branch. Main is included because the Pages
+    # workflow already publishes that branch, and deploy waits for this check.
+    branches:
+      - main
+      - Main
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Audit
+        # Blocking at high and critical. `npm audit fix` (no --force) upgrades
+        # transitive @aws-sdk packages from 3.952.0 to 3.1161.0 inside the
+        # existing caret ranges, and `vite build` then fails because
+        # @aws-sdk/credential-provider-login imports Node-only modules
+        # (node:fs, node:os, node:path). High and critical advisories are
+        # cleared by same-major overrides in package.json instead, which keep
+        # the AWS SDK on 3.952.0 and leave `npm run build` passing.
+        # Findings below high stay out of this gate. The remaining minimatch
+        # advisory is moderate and only goes away with `npm audit fix --force`,
+        # which downgrades typescript-eslint as a breaking change.
+        run: npm audit --audit-level=high
+
+      - name: Gitleaks secret scan
+        # gitleaks-action reads pull-request commits and posts review comments,
+        # which needs permissions beyond contents: read. This step runs the
+        # gitleaks CLI against the full checkout history instead.
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" gitleaks
+          ./gitleaks detect --source . --redact --verbose --exit-code 1
