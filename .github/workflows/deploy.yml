@@ -1,14 +1,17 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches: ['Main', 'main']
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+    branches: [main, Main]
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  checks: read
 
 concurrency:
   group: 'pages'
@@ -16,10 +19,31 @@ concurrency:
 
 jobs:
   build:
+    # A push used to deploy immediately. Deploys now wait until the ci
+    # workflow succeeds on that branch. Manual dispatch deploys only when
+    # the selected commit already has a successful ci check.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Require passing ci check
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "ci" and .status == "completed")] | sort_by(.completed_at) | last | .conclusion // ""')"
+          echo "ci conclusion: ${conclusion:-none}"
+          if [ "$conclusion" != "success" ]; then
+            echo "Refusing to deploy ${GITHUB_SHA}: the ci check has not passed."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # workflow_run otherwise checks out the default branch rather than
+          # the commit whose ci run succeeded. workflow_dispatch uses github.sha.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
