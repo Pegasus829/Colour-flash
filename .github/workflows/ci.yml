@@ -38,16 +38,11 @@ jobs:
         run: npm test --if-present
 
       - name: Audit
-        # Blocking at high and critical. `npm audit fix` (no --force) upgrades
-        # transitive @aws-sdk packages from 3.952.0 to 3.1161.0 inside the
-        # existing caret ranges, and `vite build` then fails because
-        # @aws-sdk/credential-provider-login imports Node-only modules
-        # (node:fs, node:os, node:path). High and critical advisories are
-        # cleared by same-major overrides in package.json instead, which keep
-        # the AWS SDK on 3.952.0 and leave `npm run build` passing.
-        # Findings below high stay out of this gate. The remaining minimatch
-        # advisory is moderate and only goes away with `npm audit fix --force`,
-        # which downgrades typescript-eslint as a breaking change.
+        # Blocking at high and critical. Same-major overrides in package.json
+        # clear the high and critical advisories that `npm audit fix` can reach
+        # without a breaking upgrade. Findings below high stay out of this gate.
+        # The remaining minimatch advisory is moderate and only goes away with
+        # `npm audit fix --force`, which downgrades typescript-eslint.
         run: npm audit --audit-level=high
 
       - name: Gitleaks secret scan
